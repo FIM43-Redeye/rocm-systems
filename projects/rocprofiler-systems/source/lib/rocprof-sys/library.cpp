@@ -690,7 +690,8 @@ rocprofsys_init_hidden(const char* _mode, bool _is_binary_rewrite, const char* _
         {
             auto _name = (_argv0_c) ? std::string{ _argv0_c } : config::get_exe_name();
             // if main hasn't been popped yet, pop it
-            ROCPROFSYS_BASIC_VERBOSE(2, "Running rocprofsys_pop_trace(%s)...\n",
+            printf("***************************************\n");
+            ROCPROFSYS_BASIC_VERBOSE(0, "Running rocprofsys_pop_trace(%s)...\n",
                                      _name.c_str());
             rocprofsys_pop_trace_hidden(_name.c_str());
         }
@@ -806,6 +807,8 @@ rocprofsys_finalize_hidden(void)
         {
             itr();
             ++_pop_count;
+            //std::cout << " ************** rocprofsys_finalize_hidden pop_count() = " << _pop_count <<"\n";
+            ROCPROFSYS_VERBOSE_F(0, "************** Finalization function called. pop_count = %zu\n", _pop_count);
         }
     }
 
@@ -890,6 +893,7 @@ rocprofsys_finalize_hidden(void)
             {
                 ++_pop_count;
                 _lvl = 4;
+                std::cout << " ************** 3 rocprofsys_finalize_hidden - instrumentation bundle -  pop_count() = " << _pop_count <<"\n";
             }
             ROCPROFSYS_VERBOSE_F(
                 _lvl,

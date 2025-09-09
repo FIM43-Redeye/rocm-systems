@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
 
-project(rocprofiler-systems-mpi-examples LANGUAGES C CXX)
+project(rocprofiler-systems-mpi-examples LANGUAGES C CXX Fortran)
+
+# Set amdflang as the Fortran compiler
+if(NOT CMAKE_Fortran_COMPILER)
+    set(CMAKE_Fortran_COMPILER "amdflang")
+endif()
 
 if(ROCPROFSYS_DISABLE_EXAMPLES)
     get_filename_component(_DIR ${CMAKE_CURRENT_LIST_DIR} NAME)
@@ -13,7 +18,7 @@ if(ROCPROFSYS_DISABLE_EXAMPLES)
     endif()
 endif()
 
-find_package(MPI)
+find_package(MPI REQUIRED) # Ensure MPI is found for all languages
 if(NOT MPI_FOUND)
     if("${CMAKE_PROJECT_NAME}" STREQUAL "rocprofiler-systems" AND "$ENV{ROCPROFSYS_CI}")
         set(_MSG_TYPE STATUS) # don't generate warnings during CI
@@ -31,6 +36,7 @@ find_package(Threads REQUIRED)
 
 set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 
+# C Interface Library
 add_library(mpi-c-interface-library INTERFACE)
 target_link_libraries(
     mpi-c-interface-library
@@ -41,6 +47,7 @@ target_link_libraries(
 )
 target_compile_options(mpi-c-interface-library INTERFACE -Wno-double-promotion)
 
+# C Examples
 add_executable(mpi-allgather allgather.c)
 target_link_libraries(mpi-allgather PRIVATE mpi-c-interface-library)
 
@@ -64,6 +71,7 @@ target_link_libraries(mpi-allreduce PRIVATE mpi-c-interface-library m)
 
 set(CMAKE_BUILD_TYPE "Release")
 
+# C++ Interface Library
 add_library(mpi-cxx-interface-library INTERFACE)
 target_link_libraries(
     mpi-cxx-interface-library
@@ -73,8 +81,17 @@ target_link_libraries(
         $<TARGET_NAME_IF_EXISTS:rocprofiler-systems::rocprofiler-systems-compile-options>
 )
 
+# C++ Example
 add_executable(mpi-example mpi.cpp)
 target_link_libraries(mpi-example PRIVATE mpi-cxx-interface-library)
+
+# Add C Example
+add_executable(mpi-c-example mpi_test.c) # Add C executable
+target_link_libraries(mpi-c-example PRIVATE MPI::MPI_C) # Link MPI C library
+
+# Fortran Example
+add_executable(mpi-fortran-example fortran/mpi_test.f90) # Add Fortran executable
+target_link_libraries(mpi-fortran-example PRIVATE MPI::MPI_Fortran) # Link MPI Fortran library
 
 if(ROCPROFSYS_INSTALL_EXAMPLES)
     install(
@@ -86,6 +103,8 @@ if(ROCPROFSYS_INSTALL_EXAMPLES)
             mpi-reduce
             mpi-scatter-gather
             mpi-send-recv
+            mpi-fortran-example # Install Fortran example
+            mpi-c-example # Install C example
         DESTINATION bin
         COMPONENT rocprofiler-systems-examples
     )

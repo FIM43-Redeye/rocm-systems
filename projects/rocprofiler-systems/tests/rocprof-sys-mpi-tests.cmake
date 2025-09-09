@@ -154,3 +154,51 @@ foreach(
         ENVIRONMENT "${_mpip_${_EXAMPLE}_environment}"
     )
 endforeach()
+
+# Add a test for the Fortran MPI example
+rocprofiler_systems_add_test(
+    SKIP_RUNTIME
+    NAME "mpi-fortran"
+    TARGET mpi-fortran-example
+    MPI ON
+    NUM_PROCS 2
+    REWRITE_ARGS
+        -e
+        -v
+        2
+        --label
+        file
+        line
+        args
+        --min-instructions
+        0
+    ENVIRONMENT "${_base_environment};ROCPROFSYS_VERBOSE=1"
+    REWRITE_RUN_PASS_REGEX
+        "Hello from process "
+    REWRITE_RUN_FAIL_REGEX
+        "ROCPROFSYS_ABORT_FAIL_REGEX|ROCPROFSYS_ABORT_FAIL_REGEX"
+)
+
+# Add a test for the C MPI example
+rocprofiler_systems_add_test(
+    SKIP_RUNTIME
+    NAME "mpi-c"
+    TARGET mpi-c-example
+    MPI ON
+    NUM_PROCS 2
+    REWRITE_ARGS
+        -e
+        -v
+        2
+        --label
+        file
+        line
+        args
+        --min-instructions
+        0
+    ENVIRONMENT "${_base_environment};ROCPROFSYS_VERBOSE=1"
+    REWRITE_RUN_PASS_REGEX
+        "Hello from process "
+    REWRITE_RUN_FAIL_REGEX
+        "ROCPROFSYS_ABORT_FAIL_REGEX|ROCPROFSYS_ABORT_FAIL_REGEX"
+)

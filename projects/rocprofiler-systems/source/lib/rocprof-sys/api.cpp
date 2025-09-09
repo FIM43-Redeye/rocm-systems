@@ -30,12 +30,14 @@ extern "C" void
 rocprofsys_push_trace(const char* _name)
 {
     rocprofsys_push_trace_hidden(_name);
+    std::cout << "**************rocprofsys_push_trace api:: " << _name << std::endl;
 }
 
 extern "C" void
 rocprofsys_pop_trace(const char* _name)
 {
     rocprofsys_pop_trace_hidden(_name);
+    std::cout << "**************rocprofsys_pop_trace api:: " << _name << std::endl;
 }
 
 extern "C" int

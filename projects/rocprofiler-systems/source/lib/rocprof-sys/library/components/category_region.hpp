@@ -163,6 +163,13 @@ category_region<CategoryT>::start(std::string_view name, Args&&... args)
     if constexpr(is_one_of<CategoryT, tracing_count_categories_t>::value)
     {
         ++tracing::push_count();
+        //std::cout << " ************** category_region ++push_count() = " << tracing::push_count() << " name =" <<name.data() <<"\n";
+        ROCPROFSYS_VERBOSE_F(
+        0,
+        "************************[%s][PID=%i][state=%s][thread_state=%s] rocprofsys_push_region(%s),  push_count(%ld)\n",
+        category_name, process::get_id(), std::to_string(get_state()).c_str(),
+        std::to_string(get_thread_state()).c_str(), name.data(), tracing::push_count().load());
+
     }
 
     auto _hash = tim::add_hash_id(name);
@@ -226,6 +233,12 @@ category_region<CategoryT>::stop(std::string_view name, Args&&... args)
         if constexpr(is_one_of<CategoryT, tracing_count_categories_t>::value)
         {
             ++tracing::pop_count();
+            //std::cout << " ************** category_region ++pop_count() = " << tracing::push_count() << " name =" <<name.data() <<"\n";
+            ROCPROFSYS_VERBOSE_F(
+                0,
+                "************************[%s][PID=%i][state=%s][thread_state=%s] rocprofsys_pop_region(%s),  pop_count(%ld)\n",
+                category_name, process::get_id(), std::to_string(get_state()).c_str(),
+                std::to_string(get_thread_state()).c_str(), name.data(),tracing::pop_count().load());
         }
 
         if constexpr(_ct_use_perfetto)

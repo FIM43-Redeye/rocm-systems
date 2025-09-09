@@ -244,7 +244,8 @@ mpi_gotcha::disable_comm_intercept()
 void
 mpi_gotcha::audit(const gotcha_data_t& _data, audit::incoming, int*, char***)
 {
-    ROCPROFSYS_BASIC_DEBUG_F("%s(int*, char***)\n", _data.tool_id.c_str());
+    ROCPROFSYS_BASIC_VERBOSE(0, "%s(int*, char***)\n", _data.tool_id.c_str());
+    std::cout << "**************rocprofsys_push_trace  mpi_gotcha::audit:: " << _data.tool_id.c_str() << std::endl;
 
     rocprofsys_push_trace_hidden(_data.tool_id.c_str());
 #if !defined(ROCPROFSYS_USE_MPI) && defined(ROCPROFSYS_USE_MPI_HEADERS)
@@ -256,7 +257,8 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::incoming, int*, char***)
 void
 mpi_gotcha::audit(const gotcha_data_t& _data, audit::incoming, int*, char***, int, int*)
 {
-    ROCPROFSYS_BASIC_DEBUG_F("%s(int*, char***, int, int*)\n", _data.tool_id.c_str());
+    ROCPROFSYS_BASIC_VERBOSE(0, "%s(int*, char***, int, int*)\n", _data.tool_id.c_str());
+    std::cout << "**************rocprofsys_push_trace  mpi_gotcha::audit:: " << _data.tool_id.c_str() << std::endl;
 
     rocprofsys_push_trace_hidden(_data.tool_id.c_str());
 #if !defined(ROCPROFSYS_USE_MPI) && defined(ROCPROFSYS_USE_MPI_HEADERS)
@@ -289,7 +291,8 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::incoming)
 void
 mpi_gotcha::audit(const gotcha_data_t& _data, audit::incoming, comm_t _comm, int* _val)
 {
-    ROCPROFSYS_BASIC_DEBUG_F("%s(comm_t _comm, int* _val)\n", _data.tool_id.c_str());
+    ROCPROFSYS_BASIC_VERBOSE(0, "%s(comm_t _comm, int* _val)\n", _data.tool_id.c_str());
+    std::cout << "**************rocprofsys_push_trace  mpi_gotcha::audit:: " << _data.tool_id.c_str() << std::endl;
 
     rocprofsys_push_trace_hidden(_data.tool_id.c_str());
     if(_data.tool_id.find("MPI_Comm_rank") == 0 ||
@@ -394,6 +397,7 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::outgoing, int _retval)
             }
         }
     }
+    std::cout << "**************rocprofsys_pop_trace  mpi_gotcha::audit::outgoing " << _data.tool_id.c_str() << std::endl;
     rocprofsys_pop_trace_hidden(_data.tool_id.c_str());
 }
 }  // namespace component

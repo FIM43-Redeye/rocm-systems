@@ -671,27 +671,33 @@ extern "C"
 
     void rocprofsys_push_trace(const char* name)
     {
+        std::cout << "**************rocprofsys_push_trace inside dl.cpp:: " << name << std::endl;
         if(!dl::get_active()) return;
         if(dl::get_thread_enabled())
         {
             ROCPROFSYS_DL_INVOKE(get_indirect().rocprofsys_push_trace_f, name);
+            std::cout << "**************rocprofsys_push_trace  inside dl.cpp :: " << name << "  -- done (thread_enabled)" << std::endl;
         }
         else
         {
             ++dl::get_thread_count();
+            std::cout << "**************rocprofsys_push_trace  inside dl.cpp :: " << name << "  -- done (NON thread_enabled)" << std::endl;
         }
     }
 
     void rocprofsys_pop_trace(const char* name)
     {
+        std::cout << "**************rocprofsys_pop_trace  inside dl.cpp:: " << name << std::endl;
         if(!dl::get_active()) return;
         if(dl::get_thread_enabled())
         {
             ROCPROFSYS_DL_INVOKE(get_indirect().rocprofsys_pop_trace_f, name);
+            std::cout << "**************rocprofsys_pop_trace  inside dl.cpp:: " << name << "  -- done (thread_enabled)" << std::endl;
         }
         else
         {
             if(dl::get_thread_count()-- == 0) rocprofsys_user_start_thread_trace_dl();
+            std::cout << "**************rocprofsys_pop_trace  inside dl.cpp:: " << name << "  -- done (NON thread_enabled)" << std::endl;
         }
     }
 
@@ -1205,6 +1211,7 @@ rocprofsys_postinit(std::string _exe)
                 _exe = tim::filepath::readlink(join('/', "/proc", getpid(), "exe"));
 
             rocprofsys_init_tooling();
+            std::cout << "**************rocprofsys_push_trace  :: rocprofsys_postinit " << _exe << std::endl;
             if(_exe.empty())
                 rocprofsys_push_trace("main");
             else
@@ -1519,6 +1526,7 @@ extern "C"
 
         int ret = (*::rocprofsys::dl::main_real)(argc, argv, envp);
 
+        std::cout << "**************rocprofsys_pop_trace  :: rocprofsys_main " << argv[0] << std::endl;
         rocprofsys_pop_trace(basename(argv[0]));
         rocprofsys_finalize();
 
