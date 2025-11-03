@@ -1048,6 +1048,20 @@ bool LinkProgram::AddLinkerDataImpl(std::vector<char>& link_data, hipJitInputTyp
       LogError("Error in hip Linker: Unable to unbundle SPIRV Bitcode");
       return false;
     }
+  } else if (is_bundled_ && input_type == hipJitInputLLVMBundledBitcode) {
+    // Unbundle bundled BC using COMGR when runtime unbundler is disabled
+    if (!findIsa()) {
+      return false;
+    }
+    std::string bundle_entry_id = "hip-" + isa_;
+    const char* bundleEntryIDs[] = {bundle_entry_id.c_str()};
+    size_t bundleEntryIDsCount = 1;
+    if (!helpers::UnbundleUsingComgr(link_data, isa_, link_options_, build_log_, llvm_code_object,
+                                     bundleEntryIDs, bundleEntryIDsCount)) {
+      LogError("Error in hip Linker: Unable to unbundle LLVM Bundled Bitcode using COMGR");
+      return false;
+    }
+    input_type = hipJitInputLLVMBitcode;
   } else {
     llvm_code_object.assign(link_data.begin(), link_data.end());
   }
