@@ -63,8 +63,10 @@
 constexpr uint64_t TARGET_CU   = 1;           // CU (gfx9) or WGP (gfx10+)
 constexpr uint64_t SHADER_MASK = 0x1;         // Only enable SE=0
 constexpr uint64_t BUFFER_SIZE = 0x20000000;  // 512MB
-constexpr uint64_t SIMD_MASK   = 0x1;         // Simd==0
+constexpr uint64_t SIMD_MASK   = 0x7;         // Simd=={0,1,2}
 constexpr int64_t POLLING_RATE = 36;
+
+static_assert(((SIMD_MASK + 1) & SIMD_MASK) == 0 && "SIMD_MASK must be one less than POT");
 
 using pcinfo_t = rocprofiler_thread_trace_decoder_pc_t;
 using inst_t   = rocprofiler_thread_trace_decoder_inst_t;
@@ -79,8 +81,6 @@ struct Latency
     uint64_t hitcount{0};
 };
 
-std::vector<perf_t>* perfevents{};
-std::vector<inst_t>* insts{};
 std::mutex mut;
 
 // Maps address to latency
@@ -98,8 +98,6 @@ gen_output_stream()
 
     CHECK_NOTNULL(table);
     CHECK_NOTNULL(latencies);
-    CHECK_NOTNULL(insts);
-    CHECK_NOTNULL(perfevents);
 
     const char*   OUTPUT_OFSTREAM = "thread_trace.csv";
     std::ofstream file(OUTPUT_OFSTREAM);
@@ -113,46 +111,6 @@ gen_output_stream()
 
     // Sort map by instruction cost
     using Element = std::pair<pcinfo_t, Latency>;
-
-    std::stable_sort(insts->begin(), insts->end(), [](const inst_t& a, const inst_t& b) {
-        return a.time < b.time;
-    });
-    std::stable_sort(perfevents->begin(), perfevents->end(), [](const perf_t& a, const perf_t& b) {
-        return a.time < b.time;
-    });
-
-    if (insts->size() && perfevents->size())
-    {
-        int64_t perf_iter = 0;
-        int64_t next_mfma_idle = 0;
-
-        for (auto& inst : *insts)
-        {
-            while (perf_iter < perfevents->size() && perfevents->at(perf_iter).time <= inst.time) perf_iter++;
-
-            /*double mfma_idle = 1;
-            if (perf_iter < perfevents->size())
-            {
-                auto& perf = perfevents->at(perf_iter);
-                if (perf.time < inst.time + POLLING_RATE)
-                    mfma_idle = std::max<double>(POLLING_RATE - perf.events0, 0)/POLLING_RATE;
-            }
-
-            latencies->at(inst.pc).matrix += mfma_idle * inst.duration;*/
-
-            int duration = inst.duration;
-            auto iter2 = perf_iter;
-            while (iter2 < perfevents->size() && perfevents->at(iter2).time < inst.time + inst.duration + 2*POLLING_RATE)
-            {
-                auto& perf = perfevents->at(iter2);
-                int64_t overlap = std::min(inst.time + inst.duration - perf.time + POLLING_RATE, perf.time - inst.time);
-                if (overlap > 0) duration -= std::min<int>(perf.events0, overlap);
-                iter2++;
-            }
-
-            if (duration > 0) latencies->at(inst.pc).matrix += duration;
-        }
-    }
 
     std::vector<Element> sorted(latencies->begin(), latencies->end());
     std::stable_sort(sorted.begin(), sorted.end(), [](const Element& a, const Element& b) {
@@ -180,16 +138,19 @@ gen_output_stream()
                << int(10000.0*latency.latency/total_raw_latency + 0.5)*0.01f << ","
                << int(10000.0*latency.matrix/total_matrix_latency + 0.5)*0.01f << "\n";
     }
-
-    uint64_t matrix_cycles = 0;
-    for (auto& perf : *perfevents) matrix_cycles = std::max<uint64_t>(perf.events0, matrix_cycles);
-
 };
 }  // namespace Results
 
 namespace Decoder
 {
 rocprofiler_thread_trace_decoder_id_t decoder{};
+
+struct events_cache_t
+{
+    std::vector<perf_t> perfevents{};
+    std::array<std::vector<inst_t>, 4> insts{};
+    std::mutex mut{};
+};
 
 void
 shader_data_callback(rocprofiler_agent_id_t /* agent */,
@@ -200,19 +161,23 @@ shader_data_callback(rocprofiler_agent_id_t /* agent */,
 {
     CHECK_NOTNULL(Results::latencies);
 
+    events_cache_t cache{};
+
     auto parse = [](rocprofiler_thread_trace_decoder_record_type_t record_type_id,
                     void*                                          events,
                     uint64_t                                       num_events,
-                    void* /* userdata */) {
+                    void*                                          userdata
+) {
+        auto& _cache = *static_cast<events_cache_t*>(userdata);
+        auto  _lk    = std::unique_lock{_cache.mut};
 
         if(record_type_id == ROCPROFILER_THREAD_TRACE_DECODER_RECORD_PERFEVENT)
         {
-            auto _lk = std::unique_lock{Results::mut};
-            Results::perfevents->reserve(Results::perfevents->size() + num_events);
+            _cache.perfevents.reserve(_cache.perfevents.size() + num_events);
             for(size_t i = 0; i < num_events; i++)
             {
                 auto& perf = static_cast<perf_t*>(events)[i];
-                if (perf.CU == TARGET_CU) Results::perfevents->push_back(perf);
+                if (perf.CU == TARGET_CU) _cache.perfevents.push_back(perf);
             }
         }
 
@@ -220,9 +185,11 @@ shader_data_callback(rocprofiler_agent_id_t /* agent */,
 
         for(size_t w = 0; w < num_events; w++)
         {
-            auto _lk = std::unique_lock{Results::mut};
+            auto  lk   = std::unique_lock{Results::mut};
             auto& wave = static_cast<rocprofiler_thread_trace_decoder_wave_t*>(events)[w];
-            Results::insts->reserve(Results::insts->size() + wave.instructions_size);
+            auto& simd = _cache.insts.at(wave.simd);
+
+            simd.reserve(simd.size() + wave.instructions_size);
             for(size_t i = 0; i < wave.instructions_size; i++)
             {
                 auto& inst    = wave.instructions_array[i];
@@ -230,12 +197,52 @@ shader_data_callback(rocprofiler_agent_id_t /* agent */,
                 latency.latency += inst.duration;
                 latency.hitcount += 1;
 
-                Results::insts->push_back(inst);
+                simd.push_back(inst);
             }
         }
     };
 
-    ROCPROFILER_CALL(rocprofiler_trace_decode(decoder, parse, se_data, data_size, nullptr), "Decode run");
+    ROCPROFILER_CALL(rocprofiler_trace_decode(decoder, parse, se_data, data_size, &cache), "Decode run");
+
+    auto& perfevents = cache.perfevents;
+
+    for (auto& simd :  cache.insts)
+    {
+        std::stable_sort(simd.begin(), simd.end(), [](const inst_t& a, const inst_t& b) {
+            return a.time < b.time;
+        });
+    }
+    std::stable_sort(perfevents.begin(), perfevents.end(), [](const perf_t& a, const perf_t& b) {
+        return a.time < b.time;
+    });
+
+    for (size_t simd_id = 0; simd_id < 4; simd_id++)
+    {
+        auto& simd = cache.insts.at(simd_id);
+        if (simd.size() && perfevents.size())
+        {
+            int64_t perf_iter      = 0;
+            int64_t next_mfma_idle = 0;
+            auto    lk             = std::unique_lock{Results::mut};
+
+            for (auto& inst : simd)
+            {
+                while (perf_iter < perfevents.size() && perfevents.at(perf_iter).time <= inst.time) perf_iter++;
+
+                int duration = inst.duration;
+                auto iter2 = perf_iter;
+                while (iter2 < perfevents.size() && perfevents.at(iter2).time < inst.time + inst.duration + 2*POLLING_RATE)
+                {
+                    auto& perf = perfevents.at(iter2);
+                    int64_t overlap = std::min(inst.time + inst.duration - perf.time + POLLING_RATE, perf.time - inst.time);
+                    if (overlap > 0) duration -= std::min<int>((&perf.events0)[simd_id], overlap);
+                    iter2++;
+                }
+
+                if (duration > 0) Results::latencies->at(inst.pc).matrix += duration;
+            }
+        }
+    }
 }
 
 }  // namespace Decoder
@@ -362,8 +369,6 @@ tool_init(rocprofiler_client_finalize_t /* fini_func */, void* /* tool_data */)
 {
     Results::latencies = new Results::LatencyTable{};
     Results::table     = new Results::AddressTable{};
-    Results::perfevents = new std::vector<perf_t>{};
-    Results::insts      = new std::vector<inst_t>{};
 
     ROCPROFILER_CALL(rocprofiler_thread_trace_decoder_create(&Decoder::decoder, "/opt/rocm/lib"), "Decoder create");
 
@@ -383,12 +388,11 @@ tool_init(rocprofiler_client_finalize_t /* fini_func */, void* /* tool_data */)
                                                         sizeof(rocprofiler_agent_t),
                                                         nullptr),
                      "Failed to find GPU agents");
-    
+
     for (auto& agent : agent_list)
     {
         rocprofiler_thread_trace_parameter_t counter{};
         counter.type = ROCPROFILER_THREAD_TRACE_PARAMETER_PERFCOUNTER;
-        counter.simd_mask = SIMD_MASK;
 
         ROCPROFILER_CALL(rocprofiler_iterate_agent_supported_counters(agent, process_agent_counters, &counter), "iterate counters");
         if (counter.counter_id.handle == 0) abort();
@@ -400,7 +404,13 @@ tool_init(rocprofiler_client_finalize_t /* fini_func */, void* /* tool_data */)
         parameters.push_back(
             {ROCPROFILER_THREAD_TRACE_PARAMETER_SHADER_ENGINE_MASK, {SHADER_MASK}});
         parameters.push_back({ROCPROFILER_THREAD_TRACE_PARAMETER_PERFCOUNTERS_CTRL, {1}});
-        parameters.push_back(counter);
+        parameters.push_back({ROCPROFILER_THREAD_TRACE_PARAMETER_PERFCOUNTER_EXCLUDE_MASK, {~(1ul<<TARGET_CU)}});
+
+        for (int i=0; i<4; i++)
+        {
+            counter.simd_mask = 1 << i;
+            if (SIMD_MASK & counter.simd_mask) parameters.push_back(counter);
+        }
 
         ROCPROFILER_CALL(
             rocprofiler_configure_dispatch_thread_trace_service(tracing_ctx,
@@ -432,8 +442,6 @@ tool_fini(void* /* tool_data */)
 
     delete Results::latencies;
     delete Results::table;
-    delete Results::insts;
-    delete Results::perfevents;
 }
 
 }  // namespace ThreadTracer
