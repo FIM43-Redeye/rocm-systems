@@ -61,10 +61,10 @@
     };
 
 constexpr uint64_t TARGET_CU   = 1;           // CU (gfx9) or WGP (gfx10+)
-constexpr uint64_t SHADER_MASK = 0x1;         // Only enable SE=0
+constexpr uint64_t SHADER_MASK = 0x1010101;   // Only enable SE=0
 constexpr uint64_t BUFFER_SIZE = 0x20000000;  // 512MB
 constexpr uint64_t SIMD_MASK   = 0x7;         // Simd=={0,1,2}
-constexpr int64_t POLLING_RATE = 36;
+constexpr int64_t POLLING_RATE = 36;          // MI350=36, MI300X=40
 
 static_assert(((SIMD_MASK + 1) & SIMD_MASK) == 0 && "SIMD_MASK must be one less than POT");
 
@@ -125,7 +125,7 @@ gen_output_stream()
         total_matrix_latency += latency.second.matrix;
     }
 
-    output << "Addr, Instruction, Hitcount, \"Latency %\",\"MfmaIdle %\"\n";
+    output << "Addr, Instruction, Hitcount, \"Latency %\",\"Weighted %\"\n";
     for(auto& [addr, latency] : sorted)
     {
         auto inst = table->get(addr.code_object_id, addr.address);
@@ -171,7 +171,13 @@ shader_data_callback(rocprofiler_agent_id_t /* agent */,
         auto& _cache = *static_cast<events_cache_t*>(userdata);
         auto  _lk    = std::unique_lock{_cache.mut};
 
-        if(record_type_id == ROCPROFILER_THREAD_TRACE_DECODER_RECORD_PERFEVENT)
+        if(record_type_id == ROCPROFILER_THREAD_TRACE_DECODER_RECORD_INFO)
+        {
+            auto* infos = (rocprofiler_thread_trace_decoder_info_t*) events;
+            for(size_t i = 0; i < num_events; i++)
+                std::cout << "Warning: " << rocprofiler_thread_trace_decoder_info_string(decoder, infos[i]);
+        }
+        else if(record_type_id == ROCPROFILER_THREAD_TRACE_DECODER_RECORD_PERFEVENT)
         {
             _cache.perfevents.reserve(_cache.perfevents.size() + num_events);
             for(size_t i = 0; i < num_events; i++)
@@ -219,28 +225,41 @@ shader_data_callback(rocprofiler_agent_id_t /* agent */,
     for (size_t simd_id = 0; simd_id < 4; simd_id++)
     {
         auto& simd = cache.insts.at(simd_id);
-        if (simd.size() && perfevents.size())
+
+        if (simd.empty()) continue;
+
+        int64_t time_begin = simd.front().time;
+        int64_t time_end   = simd.back().time + simd.back().duration + POLLING_RATE;
+
+        if (time_begin >= time_end) continue;
+
+        std::vector<float> util((time_end-time_begin)/4 + 1, 1.0f);
+
+        for (auto& perf : perfevents)
         {
-            int64_t perf_iter      = 0;
-            int64_t next_mfma_idle = 0;
-            auto    lk             = std::unique_lock{Results::mut};
+            int64_t perf_beg = (perf.time - time_begin - POLLING_RATE)/4 + 1;
+            int64_t perf_end = (perf.time - time_begin)/4 + 1;
 
-            for (auto& inst : simd)
-            {
-                while (perf_iter < perfevents.size() && perfevents.at(perf_iter).time <= inst.time) perf_iter++;
+            float weight = std::max(1.0f - (&perf.events0)[simd_id]/float(POLLING_RATE - 4), 0.0f);
 
-                int duration = inst.duration;
-                auto iter2 = perf_iter;
-                while (iter2 < perfevents.size() && perfevents.at(iter2).time < inst.time + inst.duration + 2*POLLING_RATE)
-                {
-                    auto& perf = perfevents.at(iter2);
-                    int64_t overlap = std::min(inst.time + inst.duration - perf.time + POLLING_RATE, perf.time - inst.time);
-                    if (overlap > 0) duration -= std::min<int>((&perf.events0)[simd_id], overlap);
-                    iter2++;
-                }
+            for (int64_t i=std::max(perf_beg, 0l); i<std::min<int64_t>(perf_end, util.size()); i++)
+                util.at(i) = weight;
+        }
 
-                if (duration > 0) Results::latencies->at(inst.pc).matrix += duration;
-            }
+        std::ofstream file("out.txt");
+        for (auto& u : util) file << u << ' ';
+
+        auto lk = std::unique_lock{Results::mut};
+
+        for (auto& inst : simd)
+        {
+            int64_t inst_begin = (inst.time - time_begin)/4;
+            int64_t inst_end = (inst.time + inst.duration - time_begin)/4;
+
+            float latency = 0.0f;
+            for (int64_t i=inst_begin; i<inst_end; i++) latency += util.at(i);
+
+            if (latency > 0) Results::latencies->at(inst.pc).matrix += 4.0f * latency;
         }
     }
 }
