@@ -55,7 +55,7 @@
 ### Modes
 Modes change the fundamental behavior of the Omniperf command line tool. Depending on which mode is chosen, different command line options become available.
 
-- **Profile**: Target application is launched on the local system utilizing AMD’s [ROC Profiler](https://github.com/ROCm-Developer-Tools/rocprofiler). Depending on the profiling options chosen, selected kernels, dispatches, and/or IP Blocks in the application are profiled and results are stored locally in an output folder (./workloads/\<name>).
+- **Profile**: Target application is launched on the local system utilizing AMD’s [ROC Profiler](https://github.com/ROCm/rocm-systems/tree/develop/projects/rocprofiler). Depending on the profiling options chosen, selected kernels, dispatches, and/or IP Blocks in the application are profiled and results are stored locally in an output folder (./workloads/\<name>).
 
     ```shell
     $ omniperf profile --help

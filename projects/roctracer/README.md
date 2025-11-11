@@ -138,7 +138,8 @@ To use the rocTX API you need the API header and to link your application with `
 - Clone development branch of `roctracer`:
 
   ```sh
-  git clone -b amd-master https://github.com/ROCm-Developer-Tools/roctracer
+  git clone -b develop https://github.com/ROCm/rocm-systems
+  cd rocm-systems/projects/roctracer
   ```
 
 - To build `roctracer` library:

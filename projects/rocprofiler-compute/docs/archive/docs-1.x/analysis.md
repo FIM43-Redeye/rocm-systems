@@ -12,7 +12,7 @@ While analyzing with the CLI offers quick and straightforward access to Omniperf
 See sections below for more information on each.
 
 ## CLI Analysis
-> Profiling results from the [aforementioned vcopy workload](https://rocm.github.io/omniperf/profiling.html#workload-compilation) will be used in the following sections to demonstrate the use of Omniperf in MI GPU performance analysis. Unless otherwise noted, the performance analysis is done on the MI200 platform.
+> Profiling results from the [aforementioned vcopy workload](https://github.com/ROCm/rocm-systems/tree/develop/projects/rocprofiler-compute) will be used in the following sections to demonstrate the use of Omniperf in MI GPU performance analysis. Unless otherwise noted, the performance analysis is done on the MI200 platform.
 
 ### Features
 
