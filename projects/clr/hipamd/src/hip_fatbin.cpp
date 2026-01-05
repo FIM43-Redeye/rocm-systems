@@ -500,6 +500,13 @@ hipError_t FatBinaryInfo::ExtractFatBinaryUsingCOMGR(const std::vector<hip::Devi
     }
   }
 
+  // SPIRV Code object lookup
+  // We should compile it once, for each device and reuse the code object.
+  // There is a cache in comgr to help with recompile, but ideally, we should not need to compile
+  // the SPIRV again for the device if we already have the device isa for it already.
+  std::unordered_map<std::string /* isa */, std::pair<const char* /* co size */, size_t /* size */>>
+      spirv_cache_;
+
   LogPrintfInfo("Forcing SPIRV: %s", (HIP_FORCE_SPIRV_CODEOBJECT != 0 ? "true" : "false"));
   hipError_t hip_status = hipErrorInvalidImage;
   do {
@@ -514,8 +521,6 @@ hipError_t FatBinaryInfo::ExtractFatBinaryUsingCOMGR(const std::vector<hip::Devi
 
       // If the size is not 0, that means we found the native isa code object
       if (native_co != code_obj_map.end() && !HIP_FORCE_SPIRV_CODEOBJECT) {
-        LogPrintfInfo("Using native code object for device: %s co: %s", device_name.c_str(),
-                      native_co->first.c_str());
         hip_status = AddDevProgram(device, native_co->second.first, native_co->second.second, 0);
         if (hip_status != hipSuccess) {
           break;
@@ -531,6 +536,17 @@ hipError_t FatBinaryInfo::ExtractFatBinaryUsingCOMGR(const std::vector<hip::Devi
         LogPrintfInfo("Using spirv code object for device: %s", device_name.c_str());
         std::string target_id = device->devices()[0]->isa().targetId();
         std::string isa = "amdgcn-amd-amdhsa--" + target_id;
+
+        // See if we already compiled it
+        if (auto cache = spirv_cache_.find(isa); cache != spirv_cache_.end()) {
+          LogPrintfInfo("Reusing compiled code object for isa: %s code object: %p", isa.c_str(),
+                        cache->second.first);
+          hip_status = AddDevProgram(device, cache->second.first, cache->second.second, 0);
+          if (hip_status != hipSuccess) {
+            break;
+          }
+          continue;
+        }
 
         comgr_helper::ComgrDataSetUniqueHandle spirv_data_set;
         comgr_helper::ComgrDataSetUniqueHandle reloc_data;
@@ -651,6 +667,7 @@ hipError_t FatBinaryInfo::ExtractFatBinaryUsingCOMGR(const std::vector<hip::Devi
 
         char* co = new char[co_size];
         code_obj_allocations_.insert(co);  // track to release later
+        spirv_cache_.insert(std::make_pair(isa, std::make_pair(co, co_size)));  // Add to cache
         if (auto comgr_status = amd::Comgr::get_data(exe_data.get(), &co_size, co);
             comgr_status != AMD_COMGR_STATUS_SUCCESS) {
           LogError("Failed to get exe data");
