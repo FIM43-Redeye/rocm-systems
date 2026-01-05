@@ -533,7 +533,6 @@ hipError_t FatBinaryInfo::ExtractFatBinaryUsingCOMGR(const std::vector<hip::Devi
           break;
         }
       } else if (spirv_isa_found) {
-        LogPrintfInfo("Using spirv code object for device: %s", device_name.c_str());
         std::string target_id = device->devices()[0]->isa().targetId();
         std::string isa = "amdgcn-amd-amdhsa--" + target_id;
 
@@ -548,6 +547,7 @@ hipError_t FatBinaryInfo::ExtractFatBinaryUsingCOMGR(const std::vector<hip::Devi
           continue;
         }
 
+        LogPrintfInfo("Compiling device : %s code object from spirv", device_name.c_str());
         comgr_helper::ComgrDataSetUniqueHandle spirv_data_set;
         comgr_helper::ComgrDataSetUniqueHandle reloc_data;
         comgr_helper::ComgrDataUniqueHandle spirv_data;
