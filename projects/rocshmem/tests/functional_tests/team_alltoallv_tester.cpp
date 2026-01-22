@@ -128,10 +128,10 @@ TeamAlltoallvTester<T1>::TeamAlltoallvTester(TesterArguments args)
   source_buf = (T1 *)rocshmem_malloc(buff_size);
   dest_buf   = (T1 *)rocshmem_malloc(buff_size);
 
-  source_displs = (size_t*) rocshmem_malloc(n_pes * n_pes * sizeof(size_t));
-  dest_displs   = (size_t*) rocshmem_malloc(n_pes * n_pes * sizeof(size_t));
-  source_nelems = (size_t*) rocshmem_malloc(n_pes * n_pes * sizeof(size_t));
-  dest_nelems   = (size_t*) rocshmem_malloc(n_pes * n_pes * sizeof(size_t));
+  CHECK_HIP(hipMalloc(&source_displs, n_pes * sizeof(size_t)));
+  CHECK_HIP(hipMalloc(&dest_displs  , n_pes * sizeof(size_t)));
+  CHECK_HIP(hipMalloc(&source_nelems, n_pes * sizeof(size_t)));
+  CHECK_HIP(hipMalloc(&dest_nelems  , n_pes * sizeof(size_t)));
 
   if (source_buf == nullptr    ||
       dest_buf == nullptr      ||
@@ -162,10 +162,10 @@ template <typename T1>
 TeamAlltoallvTester<T1>::~TeamAlltoallvTester() {
   rocshmem_free(source_buf);
   rocshmem_free(dest_buf);
-  rocshmem_free(source_displs);
-  rocshmem_free(dest_displs);
-  rocshmem_free(source_nelems);
-  rocshmem_free(dest_nelems);
+  CHECK_HIP(hipFree(source_displs));
+  CHECK_HIP(hipFree(dest_displs));
+  CHECK_HIP(hipFree(source_nelems));
+  CHECK_HIP(hipFree(dest_nelems));
   CHECK_HIP(hipFree(team_alltoallv_world_dup));
 }
 
