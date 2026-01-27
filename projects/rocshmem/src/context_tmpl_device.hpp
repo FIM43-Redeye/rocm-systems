@@ -165,7 +165,7 @@ __device__ void Context::alltoallv(rocshmem_team_t team,
                                    const size_t source_displs[]) {
 
   if (is_thread_zero_in_block()) {
-    ctxStats.incStat(NUM_ALLTOALL);
+    ctxStats.incStat(NUM_ALLTOALLV);
   }
 
   DISPATCH(alltoallv<T>(team,

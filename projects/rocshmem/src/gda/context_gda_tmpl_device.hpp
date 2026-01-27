@@ -665,7 +665,7 @@ __device__ void GDAContext::alltoallv(rocshmem_team_t team,
     pSync[alltoall_pSync_offset + dest_pe] = ROCSHMEM_SYNC_VALUE;
   }
 
-  // Copy out of staging bufer
+  // Copy out of staging buffer
   __syncthreads();
 
   for (int j = 0; j < pe_size; j++) {

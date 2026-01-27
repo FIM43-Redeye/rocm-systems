@@ -144,6 +144,7 @@ ROCSHMEM_ALLTOALLV
 PE i sends source_nelems[j] of data from source + source_displs[j] to PE j.
 At the same time, PE i receives dest_nelems[j] of data from PE j to be placed at dest + dest_displs[j].
 This function must be called as a work-group collective.
+Valid TYPENAME and TYPE values are listed in :ref:`RMA_TYPES`.
 
 ROCSHMEM_BROADCAST
 ------------------
