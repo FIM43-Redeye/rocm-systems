@@ -627,10 +627,7 @@ __device__ void GDAContext::alltoallv(rocshmem_team_t team,
   }
 
   GDATeam *team_obj = reinterpret_cast<GDATeam *>(team);
-
-  int pe_start = team_obj->tinfo_wrt_world->pe_start;
   int pe_size = team_obj->num_pes;
-  int stride = team_obj->tinfo_wrt_world->stride;
   long *pSync = team_obj->alltoall_pSync;
   int my_pe_in_team = team_obj->my_pe;
   uint64_t alltoall_pSync_offset = (team_obj->alltoall_sequence_number % 2) * pe_size;
@@ -648,7 +645,7 @@ __device__ void GDAContext::alltoallv(rocshmem_team_t team,
     char* amo_dst = ((char*)&pSync[alltoall_pSync_offset + my_pe_in_team] + base_heap_offset);
 
     if (nelems != 0) {
-      T* src = (T*)((char*)source + source_displs[j]);
+      T* src = (T*)((char*)source + (source_displs[j] * sizeof(T)));
       T* dst = (T*)((char*)&tmp_buf[my_pe * tmp_buf_off] + base_heap_offset);
       qps[dest_pe].put_nbi_single(dst, src, nelems, false);
     }
@@ -672,14 +669,16 @@ __device__ void GDAContext::alltoallv(rocshmem_team_t team,
   __syncthreads();
 
   for (int j = 0; j < pe_size; j++) {
-    size_t nelems = dest_nelems[j];
+    size_t nelems = dest_nelems[j] * sizeof(T);
 
     if (nelems != 0) {
-      T* dst = (T*)((char*) dest + dest_displs[j]);
+      T* dst = (T*)((char*) dest + dest_displs[j] * sizeof(T));
       T* src = (T*)((char*) &tmp_buf[j * tmp_buf_off]);
-      memcpy_wg(dst, src, nelems * sizeof(T));
+      memcpy_wg(dst, src, nelems);
     }
   }
+
+  __syncthreads();
 
   if (is_thread_zero_in_block()) {
     team_obj->alltoall_sequence_number++;
