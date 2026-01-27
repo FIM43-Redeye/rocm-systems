@@ -246,7 +246,6 @@ void TeamAlltoallvTester<T1>::resetBuffers(size_t size) {
 template <typename T1>
 void TeamAlltoallvTester<T1>::verifyResults(size_t size) {
   int num_elems = size / sizeof(T1);
-  int idx = 0;
 
   for(int pe = 0; pe < n_pes; pe++) {
     T1* dst = (T1*) ((char*)dest_buf + (dest_displs[pe] * sizeof(T1)));
@@ -254,9 +253,9 @@ void TeamAlltoallvTester<T1>::verifyResults(size_t size) {
 
     for(int i = 0; i < dest_nelems[pe]; i++) {
       if (dst[i] != src[i]) {
-        std::cerr << "Data validation error at idx " << idx << std::endl;
-        std::cerr << "PE " << my_pe << " Got " << dest_buf[idx]
-        << ", Expected " << source_buf[idx] << std::endl;
+        std::cerr << "Data validation error at idx " << i << std::endl;
+        std::cerr << "PE " << my_pe << " Got " << dest_buf[i]
+        << ", Expected " << source_buf[i] << std::endl;
         exit(-1);
       }
     }
