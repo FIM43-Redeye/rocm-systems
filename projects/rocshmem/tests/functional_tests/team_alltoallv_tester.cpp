@@ -189,26 +189,8 @@ void TeamAlltoallvTester<T1>::launchKernel(dim3 gridSize, dim3 blockSize,
                                           int loop, size_t size) {
   size_t shared_bytes = 0;
   int num_elems = size / sizeof(T1);
-
-  /* Calculate elements and displacements
-   * Note: copied from rccl-tests alltoallv
-   */
-
   size_t disp = 0;
-//  size_t chunksize = num_elems * 2 / n_pes;
-//
-//  for (int i = 0; i < n_pes; i++) {
-//    size_t scount = ((i + my_pe) % n_pes) * chunksize;
-//
-//    if ((i + my_pe) % n_pes == 0)
-//      scount += (num_elems * n_pes - chunksize * (n_pes - 1) * n_pes / 2);
-//
-//    source_nelems[i] = scount;
-//    dest_nelems[i]   = scount;
-//    source_displs[i]  = disp * sizeof(T1);
-//    dest_displs[i]   = disp * sizeof(T1);
-//    disp += scount;
-//  }
+
   for (int i = 0; i < n_pes; i++) {
     source_nelems[i] = num_elems;
     dest_nelems[i]   = num_elems;
@@ -267,9 +249,11 @@ void TeamAlltoallvTester<T1>::verifyResults(size_t size) {
   int idx = 0;
 
   for(int pe = 0; pe < n_pes; pe++) {
-    for(int i = 0; i < num_elems; i++) {
-      idx = pe * num_elems + i;
-      if (dest_buf[idx] != source_buf[idx]) {
+    T1* dst = (T1*) ((char*)dest_buf + (dest_displs[pe] * sizeof(T1)));
+    T1* src = (T1*) &source_buf[pe * num_elems];
+
+    for(int i = 0; i < dest_nelems[pe]; i++) {
+      if (dst[i] != src[i]) {
         std::cerr << "Data validation error at idx " << idx << std::endl;
         std::cerr << "PE " << my_pe << " Got " << dest_buf[idx]
         << ", Expected " << source_buf[idx] << std::endl;
