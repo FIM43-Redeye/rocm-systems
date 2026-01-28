@@ -715,9 +715,8 @@ __device__ void GDAContext::alltoallv_get(rocshmem_team_t team,
   const uint64_t seq_mask = 0xFFFF;
   const uint64_t seq_shift = 48;
 
-
   for (int j = 0; j < pe_size; j++) {
-    int dest_pe               = team_obj->get_pe_in_world(j);
+    int dest_pe = team_obj->get_pe_in_world(j);
 
     /* Pack Ctrl Message * 16 bits seq | 48bit displ */
     uint64_t seq_bits = (seq_mask & (a2a_sn + 1)) << seq_shift;
@@ -733,10 +732,6 @@ __device__ void GDAContext::alltoallv_get(rocshmem_team_t team,
     qps[dest_pe].put_nbi_single(dst, src, sizeof(uint64_t), true);
 //    printf("[%d]->[%d] seq = %lx displ_bits = %lx ctrl_msg = %lx\n",
 //           my_pe, dest_pe, seq_bits, displ_bits, ctrl_msg);
-  }
-
-  if (is_thread_zero_in_block()) {
-    quiet();
   }
 
   /* Wait for Ctrl Message */
