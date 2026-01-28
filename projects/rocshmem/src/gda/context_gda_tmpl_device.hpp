@@ -720,28 +720,27 @@ __device__ void GDAContext::alltoallv_get(rocshmem_team_t team,
 
   /* Put Ctrl Message */
   for (int j = tid; j < pe_size; j+= step_size) {
+    uint64_t *src;
+    uint64_t *dst;
+    uint64_t seq_bits;
+    uint64_t displ_bits;
+
     int dest_pe = team_obj->get_pe_in_world(j);
+    uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
 
     /* Pack Ctrl Message * 16 bits seq | 48bit displ */
-    uint64_t seq_bits = (seq_mask & (a2a_sn + 1)) << seq_shift;
-    uint64_t displ_bits = (displs_mask & source_displs[dest_pe]);
+    seq_bits = (seq_mask & (a2a_sn + 1)) << seq_shift;
+    displ_bits = (displs_mask & source_displs[dest_pe]);
     uint64_t ctrl_msg = seq_bits | displ_bits;
 
     /* Prepare Ctrl Message */
-    uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
-    uint64_t *src = (uint64_t*)&ctrl_msg;
-    uint64_t *dst = (uint64_t*)((char*)&tmp_buf[my_pe] + base_heap_offset);
+    src = (uint64_t*)&ctrl_msg;
+    dst = (uint64_t*)((char*)&tmp_buf[my_pe] + base_heap_offset);
 
     qps[dest_pe].put_nbi_single(dst, src, sizeof(uint64_t), true);
-  }
 
-  for (int j = tid; j < pe_size; j+= step_size) {
     /* Wait for Ctrl Message */
-    int dest_pe = team_obj->get_pe_in_world(j);
-
     uint64_t ctrl_value;
-    uint64_t seq_bits;
-    uint64_t displ_bits;
     volatile uint64_t *vol_ctrl = &tmp_buf[dest_pe];
 
     do {
@@ -751,24 +750,15 @@ __device__ void GDAContext::alltoallv_get(rocshmem_team_t team,
     } while (seq_bits != (a2a_sn + 1));
 
     /* Get data */
-    uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
     size_t nelems = dest_nelems[dest_pe] * sizeof(T);
-    T* src = (T*)((char*)source + (displ_bits * sizeof(T)) + base_heap_offset);
-    T* dst = (T*)((char*)dest + (dest_displs[j] * sizeof(T)));
+    src = (uint64_t*)((char*)source + (displ_bits * sizeof(T)) + base_heap_offset);
+    dst = (uint64_t*)((char*)dest + (dest_displs[j] * sizeof(T)));
 
     qps[dest_pe].get_nbi_single(dst, src, nelems, true);
-  }
 
-  /* Put Completion */
-  for (int j = tid; j < pe_size; j+= step_size) {
-    int dest_pe = team_obj->get_pe_in_world(j);
-    uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
+    /* Put Completion */
     char* amo_dst = ((char*)&pSync[alltoall_pSync_offset + my_pe_in_team] + base_heap_offset);
     qps[dest_pe].atomic_nofetch_single(amo_dst, 1);
-  }
-
-  for (int j = tid; j < pe_size; j+= step_size) {
-    int dest_pe = team_obj->get_pe_in_world(j);
 
     volatile long *vol_ivars = &pSync[alltoall_pSync_offset + dest_pe];
     while (uncached_load(vol_ivars) != 1) { }
