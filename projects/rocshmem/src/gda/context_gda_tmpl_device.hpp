@@ -612,20 +612,30 @@ __device__ void GDAContext::alltoall(rocshmem_team_t team, T *dst,
     alltoall_linear(team, dst, src, nelems);
   }
 }
-
 template <typename T>
+
 __device__ void GDAContext::alltoallv(rocshmem_team_t team,
                                       T *dest, const size_t dest_nelems[],
                                       const size_t dest_displs[],
                                       T *source, const size_t source_nelems[],
                                       const size_t source_displs[]) {
-
   if (gda_provider_ == GDAProvider::MLX5 ||
       gda_provider_ == GDAProvider::IONIC) {
     printf("rocshmem::gda:alltoallv not implemented\n");
     abort();
   }
 
+  alltoallv_get(team,
+                dest, dest_nelems, dest_displs,
+                source, source_nelems, source_displs);
+}
+
+template <typename T>
+__device__ void GDAContext::alltoallv_copy(rocshmem_team_t team,
+                                           T *dest, const size_t dest_nelems[],
+                                           const size_t dest_displs[],
+                                           T *source, const size_t source_nelems[],
+                                           const size_t source_displs[]) {
   GDATeam *team_obj = reinterpret_cast<GDATeam *>(team);
   int pe_size = team_obj->num_pes;
   long *pSync = team_obj->alltoall_pSync;
@@ -683,6 +693,87 @@ __device__ void GDAContext::alltoallv(rocshmem_team_t team,
   if (is_thread_zero_in_block()) {
     team_obj->alltoall_sequence_number++;
   }
+}
+
+template <typename T>
+__device__ void GDAContext::alltoallv_get(rocshmem_team_t team,
+                                          T *dest, const size_t dest_nelems[],
+                                          const size_t dest_displs[],
+                                          T *source, const size_t source_nelems[],
+                                          const size_t source_displs[]) {
+
+  GDATeam *team_obj = reinterpret_cast<GDATeam *>(team);
+  int pe_size       = team_obj->num_pes;
+  int pe_start = team_obj->tinfo_wrt_world->pe_start;
+  int stride = team_obj->tinfo_wrt_world->stride;
+  long *pSync = team_obj->alltoall_pSync;
+  int my_pe_in_team = team_obj->my_pe;
+  uint64_t a2a_sn   = team_obj->alltoall_sequence_number;
+  uint64_t *tmp_buf = (uint64_t*)team_obj->pWrk;
+
+  const uint64_t displs_mask = 0x0000'FFFF'FFFF'FFFF;
+  const uint64_t seq_mask = 0xFFFF;
+  const uint64_t seq_shift = 48;
+
+
+  for (int j = 0; j < pe_size; j++) {
+    int dest_pe               = team_obj->get_pe_in_world(j);
+
+    /* Pack Ctrl Message * 16 bits seq | 48bit displ */
+    uint64_t seq_bits = (seq_mask & (a2a_sn + 1)) << seq_shift;
+    uint64_t displ_bits = (displs_mask & source_displs[dest_pe]);
+    uint64_t ctrl_msg = seq_bits | displ_bits;
+
+    /* Prepare Ctrl Message */
+    uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
+    uint64_t *src = (uint64_t*)&ctrl_msg;
+    uint64_t *dst = (uint64_t*)((char*)&tmp_buf[my_pe] + base_heap_offset);
+
+    /* Put Ctrl Message */
+    qps[dest_pe].put_nbi_single(dst, src, sizeof(uint64_t), true);
+//    printf("[%d]->[%d] seq = %lx displ_bits = %lx ctrl_msg = %lx\n",
+//           my_pe, dest_pe, seq_bits, displ_bits, ctrl_msg);
+  }
+
+  if (is_thread_zero_in_block()) {
+    quiet();
+  }
+
+  /* Wait for Ctrl Message */
+  for (int j = 0; j < pe_size; j++) {
+    int dest_pe = team_obj->get_pe_in_world(j);
+
+    uint64_t ctrl_value;
+    uint64_t seq_bits;
+    uint64_t displ_bits;
+    volatile uint64_t *vol_ctrl = &tmp_buf[dest_pe];
+
+    do {
+      ctrl_value = uncached_load(vol_ctrl);
+      seq_bits = (ctrl_value >> seq_shift) & seq_mask;
+      displ_bits = ctrl_value & displs_mask;
+    } while (seq_bits != (a2a_sn + 1));
+
+//    printf("[%d]<-[%d] seq = %lx displ_bits = %lx ctrl_msg = %lx\n",
+//           dest_pe, my_pe, seq_bits, displ_bits, ctrl_value);
+
+    /* Get data */
+    uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
+    size_t nelems = dest_nelems[dest_pe] * sizeof(T);
+    T* src = (T*)((char*)source + (displ_bits * sizeof(T)));
+    T* dst = (T*)((char*)dest + (dest_displs[j] * sizeof(T)));
+
+    getmem_nbi_wave(dst, src, nelems, dest_pe);
+  }
+
+  if (is_thread_zero_in_block()) {
+    quiet();
+  }
+
+  /* Put Completion */
+  internal_sync_wg(my_pe, pe_start, stride, pe_size, pSync);
+
+  __syncthreads();
 }
 
 template <typename T>

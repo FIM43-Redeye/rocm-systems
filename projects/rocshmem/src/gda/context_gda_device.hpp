@@ -166,6 +166,20 @@ class GDAContext : public Context {
                             const size_t source_displs[]);
 
   template <typename T>
+  __device__ void alltoallv_copy(rocshmem_team_t team,
+                                 T *dest, const size_t dest_nelems[],
+                                 const size_t dest_displs[],
+                                 T *source, const size_t source_nelems[],
+                                 const size_t source_displs[]);
+
+  template <typename T>
+  __device__ void alltoallv_get(rocshmem_team_t team,
+                                T *dest, const size_t dest_nelems[],
+                                const size_t dest_displs[],
+                                T *source, const size_t source_nelems[],
+                                const size_t source_displs[]);
+
+  template <typename T>
   __device__ void fcollect(rocshmem_team_t team, T *dest, const T *source,
                            int nelems);
 
