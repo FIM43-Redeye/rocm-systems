@@ -701,7 +701,6 @@ __device__ void GDAContext::alltoallv_get(rocshmem_team_t team,
                                           const size_t dest_displs[],
                                           T *source, const size_t source_nelems[],
                                           const size_t source_displs[]) {
-
   GDATeam *team_obj = reinterpret_cast<GDATeam *>(team);
   int pe_size       = team_obj->num_pes;
   int pe_start = team_obj->tinfo_wrt_world->pe_start;
@@ -709,6 +708,7 @@ __device__ void GDAContext::alltoallv_get(rocshmem_team_t team,
   long *pSync = team_obj->alltoall_pSync;
   int my_pe_in_team = team_obj->my_pe;
   uint64_t a2a_sn   = team_obj->alltoall_sequence_number;
+  uint64_t alltoall_pSync_offset = (a2a_sn % 2) * pe_size;
   uint64_t *tmp_buf = (uint64_t*)team_obj->pWrk;
 
   const uint64_t displs_mask = 0x0000'FFFF'FFFF'FFFF;
@@ -759,13 +759,24 @@ __device__ void GDAContext::alltoallv_get(rocshmem_team_t team,
     qps[dest_pe].get_nbi_single(dst, src, nelems, true);
   }
 
+  /* Put Completion */
   for (int j = tid; j < pe_size; j+= step_size) {
     int dest_pe = team_obj->get_pe_in_world(j);
-    pe_quiet_single(dest_pe);
+    uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
+    char* amo_dst = ((char*)&pSync[alltoall_pSync_offset + my_pe_in_team] + base_heap_offset);
+    qps[dest_pe].atomic_nofetch_single(amo_dst, 1);
   }
 
-  /* Put Completion */
-  internal_sync_wg(my_pe, pe_start, stride, pe_size, pSync);
+  for (int j = tid; j < pe_size; j+= step_size) {
+    int dest_pe = team_obj->get_pe_in_world(j);
+
+    volatile long *vol_ivars = &pSync[alltoall_pSync_offset + dest_pe];
+    while (uncached_load(vol_ivars) != 1) { }
+
+    pe_quiet_single(dest_pe);
+
+    pSync[alltoall_pSync_offset + dest_pe] = ROCSHMEM_SYNC_VALUE;
+  }
 
   if (is_thread_zero_in_block()) {
     team_obj->alltoall_sequence_number++;
