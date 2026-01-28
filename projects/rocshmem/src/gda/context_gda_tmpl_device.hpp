@@ -715,60 +715,66 @@ __device__ void GDAContext::alltoallv_get(rocshmem_team_t team,
   const uint64_t seq_mask = 0xFFFF;
   const uint64_t seq_shift = 48;
 
-  if (is_thread_zero_in_block()) {
-    for (int j = 0; j < pe_size; j++) {
-      int dest_pe = team_obj->get_pe_in_world(j);
+  int tid = get_flat_block_id();
+  int step_size = min(get_flat_block_size(), WF_SIZE);
 
-      /* Pack Ctrl Message * 16 bits seq | 48bit displ */
-      uint64_t seq_bits = (seq_mask & (a2a_sn + 1)) << seq_shift;
-      uint64_t displ_bits = (displs_mask & source_displs[dest_pe]);
-      uint64_t ctrl_msg = seq_bits | displ_bits;
+  /* Put Ctrl Message */
+  for (int j = tid; j < pe_size; j+= step_size) {
+    int dest_pe = team_obj->get_pe_in_world(j);
 
-      /* Prepare Ctrl Message */
-      uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
-      uint64_t *src = (uint64_t*)&ctrl_msg;
-      uint64_t *dst = (uint64_t*)((char*)&tmp_buf[my_pe] + base_heap_offset);
+    /* Pack Ctrl Message * 16 bits seq | 48bit displ */
+    uint64_t seq_bits = (seq_mask & (a2a_sn + 1)) << seq_shift;
+    uint64_t displ_bits = (displs_mask & source_displs[dest_pe]);
+    uint64_t ctrl_msg = seq_bits | displ_bits;
 
-      /* Put Ctrl Message */
-      qps[dest_pe].put_nbi_single(dst, src, sizeof(uint64_t), true);
+    /* Prepare Ctrl Message */
+    uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
+    uint64_t *src = (uint64_t*)&ctrl_msg;
+    uint64_t *dst = (uint64_t*)((char*)&tmp_buf[my_pe] + base_heap_offset);
+
+    qps[dest_pe].put_nbi_single(dst, src, sizeof(uint64_t), true);
   //    printf("[%d]->[%d] seq = %lx displ_bits = %lx ctrl_msg = %lx\n",
   //           my_pe, dest_pe, seq_bits, displ_bits, ctrl_msg);
-    }
+  }
 
+  for (int j = tid; j < pe_size; j+= step_size) {
     /* Wait for Ctrl Message */
-    for (int j = 0; j < pe_size; j++) {
-      int dest_pe = team_obj->get_pe_in_world(j);
+    int dest_pe = team_obj->get_pe_in_world(j);
 
-      uint64_t ctrl_value;
-      uint64_t seq_bits;
-      uint64_t displ_bits;
-      volatile uint64_t *vol_ctrl = &tmp_buf[dest_pe];
+    uint64_t ctrl_value;
+    uint64_t seq_bits;
+    uint64_t displ_bits;
+    volatile uint64_t *vol_ctrl = &tmp_buf[dest_pe];
 
-      do {
-        ctrl_value = uncached_load(vol_ctrl);
-        seq_bits = (ctrl_value >> seq_shift) & seq_mask;
-        displ_bits = ctrl_value & displs_mask;
-      } while (seq_bits != (a2a_sn + 1));
+    do {
+      ctrl_value = uncached_load(vol_ctrl);
+      seq_bits = (ctrl_value >> seq_shift) & seq_mask;
+      displ_bits = ctrl_value & displs_mask;
+    } while (seq_bits != (a2a_sn + 1));
 
   //    printf("[%d]<-[%d] seq = %lx displ_bits = %lx ctrl_msg = %lx\n",
   //           dest_pe, my_pe, seq_bits, displ_bits, ctrl_value);
 
-      /* Get data */
-      uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
-      size_t nelems = dest_nelems[dest_pe] * sizeof(T);
-      T* src = (T*)((char*)source + (displ_bits * sizeof(T)));
-      T* dst = (T*)((char*)dest + (dest_displs[j] * sizeof(T)));
+    /* Get data */
+    uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
+    size_t nelems = dest_nelems[dest_pe] * sizeof(T);
+    T* src = (T*)((char*)source + (displ_bits * sizeof(T)));
+    T* dst = (T*)((char*)dest + (dest_displs[j] * sizeof(T)));
 
-      getmem_nbi_wave(dst, src, nelems, dest_pe);
-    }
-
-    quiet();
+    getmem_nbi(dst, src, nelems, dest_pe);
   }
 
-  __syncthreads();
+  for (int j = tid; j < pe_size; j+= step_size) {
+    int dest_pe = team_obj->get_pe_in_world(j);
+    pe_quiet_single(dest_pe);
+  }
 
   /* Put Completion */
   internal_sync_wg(my_pe, pe_start, stride, pe_size, pSync);
+
+  if (is_thread_zero_in_block()) {
+    team_obj->alltoall_sequence_number++;
+  }
 
   __syncthreads();
 }
