@@ -164,31 +164,31 @@ void GDABackend::setup_ctxs() {
   setup_host_ctx();
   setup_default_ctx();
 
-  CHECK_HIP(hipMalloc(&ctx_array, sizeof(GDAContext) * envvar::max_num_contexts));
-  // 0th context is default context
-  for (size_t i = 0; i < envvar::max_num_contexts; i++) {
-    new (&ctx_array[i]) GDAContext(this, i + 1, gda_provider);
-    ctx_free_list.get()->push_back(ctx_array + i);
-  }
+  CHECK_HIP(hipMalloc(&ctx_index, sizeof(uint64_t)));
+  CHECK_HIP(hipMalloc(&ctx_count, sizeof(uint64_t)));
+  *ctx_index = 0;
+  *ctx_count = envvar::max_num_contexts;
 }
 
 void GDABackend::cleanup_ctxs() {
-  ctx_free_list.~FreeListProxy();
-  for (size_t i = 0; i < envvar::max_num_contexts; i++) {
-    ctx_array[i].~GDAContext();
-  }
-
+  CHECK_HIP(hipFree(ctx_index));
+  CHECK_HIP(hipFree(ctx_count));
   CHECK_HIP(hipFree(ctx_array));
 }
 
 __device__ bool GDABackend::create_ctx(int64_t options, rocshmem_ctx_t *ctx) {
   GDAContext *ctx_{nullptr};
 
-  auto pop_result = ctx_free_list.get()->pop_front();
-  if (!pop_result.success) {
+  uint64_t idx = __hip_atomic_fetch_add(ctx_index, 1,
+                                        __ATOMIC_SEQ_CST,
+                                        __HIP_MEMORY_SCOPE_AGENT);
+  uint64_t num_ctxs = *ctx_count;
+
+  if (idx >= num_ctxs) {
     return false;
   }
-  ctx_ = pop_result.value;
+
+  ctx_ = &ctx_array[idx % num_ctxs];
 
   ctx->ctx_opaque = ctx_;
 
@@ -197,7 +197,9 @@ __device__ bool GDABackend::create_ctx(int64_t options, rocshmem_ctx_t *ctx) {
 }
 
 __device__ void GDABackend::destroy_ctx(rocshmem_ctx_t *ctx) {
-  ctx_free_list.get()->push_back(static_cast<GDAContext *>(ctx->ctx_opaque));
+  __hip_atomic_fetch_sub(ctx_index, 1,
+                         __ATOMIC_SEQ_CST,
+                         __HIP_MEMORY_SCOPE_AGENT);
 }
 
 void GDABackend::setup_team_world() {

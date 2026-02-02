@@ -450,9 +450,10 @@ class GDABackend : public Backend {
   GDAContext *ctx_array{nullptr};
 
   /**
-   * @brief A free-list containing contexts.
+   * @brief ctx state tracking
    */
-  FreeListProxy<HIPAllocator, GDAContext *> ctx_free_list{};
+  uint64_t *ctx_index;
+  uint64_t *ctx_count;
 
   /**
    * @brief The bitmask representing the availability of teams in the pool
