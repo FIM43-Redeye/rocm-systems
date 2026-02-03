@@ -336,7 +336,8 @@ Note - This test case is just to check if hipGraphInstantiateFlagAutoFreeOnLaunc
        will be added once the feature is fully implemented.
 */
 TEST_CASE("Unit_hipGraphInstantiateWithFlags_FlagAutoFreeOnLaunch_check") {
-  constexpr size_t size = 512 * 1024 * 1024;
+  HIP_CHECK(hipSetDevice(0));
+  constexpr size_t size = 1024 * 1024;
   constexpr size_t Nbytes = size * sizeof(int);
 
   hipGraph_t graph;
@@ -449,7 +450,6 @@ TEST_CASE("Unit_hipGraphInstantiateWithFlags_AutoFreeOnLaunchInLoop") {
 #endif
   }
 
-  HIP_CHECK(hipFree(devMem));
   HIP_CHECK(hipGraphExecDestroy(graphExec));
   HIP_CHECK(hipGraphDestroy(graph));
   HIP_CHECK(hipStreamDestroy(stream));
@@ -503,8 +503,10 @@ TEST_CASE("Unit_hipGraphInstantiateWithFlags_AutoFreeOnLaunchFillKernel") {
 
   hipKernelNodeParams kernelNodeParams{};
   kernelNodeParams.func = reinterpret_cast<void*>(fillKernel);
-  kernelNodeParams.gridDim = dim3(1, 1, 1);
-  kernelNodeParams.blockDim = dim3(1, 1, 1);
+  constexpr unsigned threadsPerBlock = 256;
+  const unsigned blocks = (SIZE + threadsPerBlock - 1) / threadsPerBlock;
+  kernelNodeParams.gridDim = dim3(blocks, 1, 1);
+  kernelNodeParams.blockDim = dim3(threadsPerBlock, 1, 1);
   kernelNodeParams.sharedMemBytes = 0;
   int size = SIZE;
   void* kernelArgs[3] = {reinterpret_cast<void*>(&devMem), reinterpret_cast<void*>(&size),
@@ -540,7 +542,6 @@ TEST_CASE("Unit_hipGraphInstantiateWithFlags_AutoFreeOnLaunchFillKernel") {
   HIP_CHECK(hipGraphExecDestroy(graphExec));
   HIP_CHECK(hipGraphDestroy(graph));
   HIP_CHECK(hipStreamDestroy(stream));
-  HIP_CHECK(hipFree(devMem));
   delete[] hostMemDst;
 }
 
@@ -603,8 +604,10 @@ TEST_CASE("Unit_hipGraphInstantiateWithFlags_AutoFreeOnLaunchDoubleKernel") {
 
   hipKernelNodeParams kernelNodeParams{};
   kernelNodeParams.func = reinterpret_cast<void*>(doubleKernel);
-  kernelNodeParams.gridDim = dim3(1, 1, 1);
-  kernelNodeParams.blockDim = dim3(1, 1, 1);
+  constexpr unsigned threadsPerBlock = 256;
+  const unsigned blocks = (SIZE + threadsPerBlock - 1) / threadsPerBlock;
+  kernelNodeParams.gridDim = dim3(blocks, 1, 1);
+  kernelNodeParams.blockDim = dim3(threadsPerBlock, 1, 1);
   kernelNodeParams.sharedMemBytes = 0;
   int size = SIZE;
   void* kernelArgs[2] = {reinterpret_cast<void*>(&devMem), reinterpret_cast<void*>(&size)};
@@ -643,7 +646,6 @@ TEST_CASE("Unit_hipGraphInstantiateWithFlags_AutoFreeOnLaunchDoubleKernel") {
   HIP_CHECK(hipGraphExecDestroy(graphExec));
   HIP_CHECK(hipGraphDestroy(graph));
   HIP_CHECK(hipStreamDestroy(stream));
-  HIP_CHECK(hipFree(devMem));
   delete[] hostMemSrc;
   delete[] hostMemDst;
 }
@@ -720,8 +722,10 @@ TEST_CASE("Unit_hipGraphInstantiateWithFlags_WithDefaultAndAutoFreeOnLaunch") {
 
   hipKernelNodeParams kernelNodeParams{};
   kernelNodeParams.func = reinterpret_cast<void*>(doubleKernel);
-  kernelNodeParams.gridDim = dim3(1, 1, 1);
-  kernelNodeParams.blockDim = dim3(1, 1, 1);
+  constexpr unsigned threadsPerBlock = 256;
+  const unsigned blocks = (SIZE + threadsPerBlock - 1) / threadsPerBlock;
+  kernelNodeParams.gridDim = dim3(blocks, 1, 1);
+  kernelNodeParams.blockDim = dim3(threadsPerBlock, 1, 1);
   kernelNodeParams.sharedMemBytes = 0;
   int size = SIZE;
   void* kernelArgs[2] = {reinterpret_cast<void*>(&devMem), reinterpret_cast<void*>(&size)};
@@ -769,5 +773,4 @@ TEST_CASE("Unit_hipGraphInstantiateWithFlags_WithDefaultAndAutoFreeOnLaunch") {
   delete[] hostMem1;
   delete[] hostMem2;
   delete[] hostMem3;
-  HIP_CHECK(hipFree(devMem));
 }
