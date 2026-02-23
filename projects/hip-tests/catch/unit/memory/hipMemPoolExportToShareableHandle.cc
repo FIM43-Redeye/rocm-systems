@@ -47,10 +47,6 @@ static __global__ void square_kernel(int* Buff) {
   }
 }
 
-static constexpr size_t ceil_div(size_t value, size_t divisor) {
-  return (value + divisor - 1) / divisor;
-}
-
 /**
  Fill with input and expected output data.
  */
@@ -108,8 +104,8 @@ TEST_CASE("Unit_hipMemPoolExportToShareableHandle_SameProc") {
   // Import and use pointer
   void* ptrImp;
   HIP_CHECK(hipMemPoolImportPointer(&ptrImp, mempoolImp, &ptrExp));
-  square_kernel<<<dim3(ceil_div(DATA_SIZE, THREADS_PER_BLOCK)), dim3(THREADS_PER_BLOCK), 0, stream>>>(
-      (int*)ptrImp);
+  square_kernel<<<dim3(HipTest::ceil_div(DATA_SIZE, THREADS_PER_BLOCK)), dim3(THREADS_PER_BLOCK), 0,
+                  stream>>>((int*)ptrImp);
   HIP_CHECK(hipGetLastError());
   HIP_CHECK(hipMemcpyAsync(B_h.data(), ptrImp, byte_size, hipMemcpyDeviceToHost, stream));
   HIP_CHECK(hipStreamSynchronize(stream));
@@ -169,8 +165,8 @@ TEST_CASE("Unit_hipMemPoolExportToShareableHandle_ChldUseHdl") {
     // Import and use pointer
     void* ptrImp;
     HIP_CHECK(hipMemPoolImportPointer(&ptrImp, mempoolImp, &ptrExp));
-    square_kernel<<<dim3(ceil_div(DATA_SIZE, THREADS_PER_BLOCK)), dim3(THREADS_PER_BLOCK), 0, 0>>>(
-        (int*)ptrImp);
+    square_kernel<<<dim3(HipTest::ceil_div(DATA_SIZE, THREADS_PER_BLOCK)), dim3(THREADS_PER_BLOCK),
+                    0, 0>>>((int*)ptrImp);
     HIP_CHECK(hipGetLastError());
     HIP_CHECK(hipStreamSynchronize(0));
     HIP_CHECK(hipFree(ptrImp));
@@ -388,8 +384,8 @@ TEST_CASE("Unit_hipMemPoolExportToShareableHandle_GrndChldUseHdl") {
       // Import and use pointer
       void* ptrImp;
       HIP_CHECK(hipMemPoolImportPointer(&ptrImp, mempoolImp, &ptrExp));
-      square_kernel<<<dim3(ceil_div(DATA_SIZE, THREADS_PER_BLOCK)), dim3(THREADS_PER_BLOCK), 0, 0>>>(
-          (int*)ptrImp);
+      square_kernel<<<dim3(HipTest::ceil_div(DATA_SIZE, THREADS_PER_BLOCK)),
+                      dim3(THREADS_PER_BLOCK), 0, 0>>>((int*)ptrImp);
       HIP_CHECK(hipGetLastError());
       HIP_CHECK(hipStreamSynchronize(0));
       HIP_CHECK(hipFree(ptrImp));
