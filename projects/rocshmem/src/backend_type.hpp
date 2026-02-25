@@ -37,6 +37,7 @@
  */
 
 #include "rocshmem/rocshmem_config.h"  // NOLINT(build/include_subdir)
+#include "constmem.hpp"
 
 namespace rocshmem {
 
@@ -58,7 +59,7 @@ namespace rocshmem {
  */
 #if defined(USE_GDA) && defined(USE_RO) && defined(USE_IPC)
 #define DISPATCH(Func)                     \
-  switch(this->btype) {                    \
+  switch(constmem.backend_type) {          \
   case BackendType::GDA_BACKEND:           \
     static_cast<GDAContext *>(this)->Func; \
     break;                                 \

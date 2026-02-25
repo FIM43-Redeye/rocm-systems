@@ -28,6 +28,7 @@
 
 #include "backend_gda.hpp"
 #include "constants.hpp"
+#include "constmem.hpp"
 #include "util.hpp"
 
 namespace rocshmem {
@@ -130,7 +131,7 @@ __device__ uint64_t QueuePair::get_same_qp_lane_mask() {
  ************************ PROVIDER-SPECIFIC HELPERS ***************************
  *****************************************************************************/
 __device__ void QueuePair::post_wqe_rma(int pe, int32_t size, uintptr_t laddr, uintptr_t raddr, uint8_t opcode, Collectivity cy) {
-  switch (gda_provider_) {
+  switch (constmem.provider) {
 #if defined(GDA_IONIC)
   case GDAProvider::IONIC:
     ionic_post_wqe_rma(pe, size, laddr, raddr, opcode, cy);

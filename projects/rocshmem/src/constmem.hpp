@@ -26,8 +26,16 @@
 #define LIBRARY_SRC_CONSTMEM_HPP_
 
 #include "util.hpp"
+#include "rocshmem/rocshmem_common.hpp"
 
 namespace rocshmem {
+
+enum GDAProvider {
+  UNSET,
+  IONIC,
+  BNXT,
+  MLX5
+};
 
 enum alltoallv_algos {
   ALLTOALLV_ALGO_HT = 0,
@@ -35,6 +43,8 @@ enum alltoallv_algos {
 };
 
 struct constmem_t {
+  BackendType backend_type;
+  GDAProvider provider;
   uint64_t alltoall_wg_algo;
 } __attribute__ ((aligned (16)));
 

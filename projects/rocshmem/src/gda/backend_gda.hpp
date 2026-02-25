@@ -40,6 +40,7 @@
 #include "gda/ionic/provider_gda_ionic.hpp"
 #include "gda/bnxt/provider_gda_bnxt.hpp"
 #include "gda/mlx5/provider_gda_mlx5.hpp"
+#include "constmem.hpp"
 
 namespace rocshmem {
 
@@ -47,13 +48,6 @@ class GDAContext;
 class GDAHostContext;
 class QueuePair;
 class HostInterface;
-
-enum GDAProvider {
-  UNSET,
-  IONIC,
-  BNXT,
-  MLX5
-};
 
 inline constexpr uint32_t GDA_IONIC_VENDOR_ID = 0x1DD8;
 inline constexpr uint32_t GDA_MLX5_VENDOR_ID  = 0x02c9; //PCI-ID is 15b3

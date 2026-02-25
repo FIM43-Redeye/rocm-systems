@@ -19,6 +19,9 @@ void init_constant_memory(void) {
     constmem_values.alltoall_wg_algo = ALLTOALLV_ALGO_LL;
   }
 
+  constmem_values.backend_type = BackendType::GDA_BACKEND;
+  constmem_values.provider = GDAProvider::BNXT;
+
   CHECK_HIP(hipMemcpyToSymbol(HIP_SYMBOL(constmem), &constmem_values, sizeof(constmem_t)));
 }
 
