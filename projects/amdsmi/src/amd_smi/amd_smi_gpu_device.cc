@@ -20,12 +20,13 @@
  * THE SOFTWARE.
  */
 
+#include <dirent.h>
+#include <sys/types.h>
+
 #include <cstring>
 #include <fstream>
 #include <memory>
 #include <unordered_set>
-#include <dirent.h>
-#include <sys/types.h>
 #include <atomic>
 
 #include "amd_smi/impl/amd_smi_gpu_device.h"
@@ -88,6 +89,7 @@ uint64_t AMDSmiGPUDevice::get_kfd_gpu_id() {
     return this->kfd_gpu_id_;
 }
 
+// This is the libDRM path, if its empty then we have issues loading libDRM
 std::string& AMDSmiGPUDevice::get_gpu_path() {
     return path_;
 }

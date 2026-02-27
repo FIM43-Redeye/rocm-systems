@@ -1917,11 +1917,21 @@ class TestAmdSmiPython(unittest.TestCase):
         return
 
     def test_get_gpu_virtualization_mode(self):
+        # Create map of gpu virtualization modes
+        dict_virtualization_mode = {
+            amdsmi.amdsmi_wrapper.AMDSMI_VIRTUALIZATION_MODE_UNKNOWN: "UNKNOWN",
+            amdsmi.amdsmi_wrapper.AMDSMI_VIRTUALIZATION_MODE_BAREMETAL: "BAREMETAL",
+            amdsmi.amdsmi_wrapper.AMDSMI_VIRTUALIZATION_MODE_HOST: "HOST",
+            amdsmi.amdsmi_wrapper.AMDSMI_VIRTUALIZATION_MODE_GUEST: "GUEST",
+            amdsmi.amdsmi_wrapper.AMDSMI_VIRTUALIZATION_MODE_PASSTHROUGH: "PASSTHROUGH",
+        }
         self._print_func_name('')
         for i, gpu in enumerate(self.processors):
             msg = f'gpu({i}):'
             try:
                 ret = amdsmi.amdsmi_get_gpu_virtualization_mode(gpu)
+                ret_str = dict_virtualization_mode.get(ret['mode'], f"Unknown virtualization mode: {ret}")
+                ret['mode'] = ret_str
                 self._print(msg, ret)
             except amdsmi.AmdSmiLibraryException as e:
                 if self._check_ret(msg, e, self.PASS):

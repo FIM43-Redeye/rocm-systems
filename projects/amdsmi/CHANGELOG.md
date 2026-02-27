@@ -39,7 +39,10 @@ Full documentation for amd_smi_lib is available at [https://rocm.docs.amd.com/pr
 
 ### Optimized
 
-- N/A
+- **Optimized `rsmi_dev_device_identifiers_get()` in the ROCm-SMI device layer**.  
+  - Removed unnecessary iteration by directly indexing the device list.
+  - Added bounds checking for `device_id`, with clearer error handling/logging.
+  - Improves performance for device identifier queries.
 
 ### Resolved Issues
 
@@ -124,6 +127,19 @@ Full documentation for amd_smi_lib is available at [https://rocm.docs.amd.com/pr
      Write                                                   N/A          N/A
     ...
     ```
+
+- **Fixed manufacturer name display for AMD GPUs**.  
+  - Updated `amdsmi_get_gpu_board_info()` to correctly detect vendor ID `0x1002` and display
+    "Advanced Micro Devices Inc. [AMD/ATI]" instead of the raw ID.
+  - Fixes `amd-smi static --board` output.
+  
+- **Fixed `amd-smi` default command alignment**.  
+  - Updated default `amd-smi` output to align values to the left for improved readability.
+    Several items were misaligned in the default output, and this change ensures a consistent left-aligned format across all fields.
+  - *This change is purely cosmetic and does not affect any functionality.*  
+
+- **Fixed virtualization detection utilities when libDRM version < 3.62.0**.  
+  - Enables `amdsmi_get_gpu_virtualization_mode()` to work when libDRM is outdated, improving virtualization detection reliability.
 
 ### Upcoming Changes
 
