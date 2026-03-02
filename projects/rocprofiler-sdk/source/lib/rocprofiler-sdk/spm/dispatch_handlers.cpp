@@ -68,16 +68,16 @@ AsyncSignalHandler(hsa_signal_value_t /*signal_v*/, void* data)
  * handshake protocol with aqlprofile SPM start kfd - SPM start packet- kernel dispatch - SPM stop
  * packet - SPM stop KFD
  */
-hsa::Queue::pkt_and_serialize_t
-pre_kernel_call(const context::context*                                         ctx,
-                const std::shared_ptr<spm_counter_callback_info>&               info,
-                const hsa::Queue&                                               queue,
-                const hsa::rocprofiler_packet&                                  pkt,
-                uint64_t                                                        kernel_id,
-                rocprofiler_dispatch_id_t                                       dispatch_id,
-                rocprofiler_user_data_t*                                        user_data,
-                const hsa::Queue::queue_info_session_t::external_corr_id_map_t& extern_corr_ids,
-                const context::correlation_id*                                  correlation_id)
+hsa::write_packet_t
+pre_kernel_call(const context::context*                                  ctx,
+                const std::shared_ptr<spm_counter_callback_info>&        info,
+                const hsa::Queue&                                        queue,
+                const hsa::rocprofiler_packet&                           pkt,
+                uint64_t                                                 kernel_id,
+                rocprofiler_dispatch_id_t                                dispatch_id,
+                rocprofiler_user_data_t*                                 user_data,
+                const hsa::queue_info_session_t::external_corr_id_map_t& extern_corr_ids,
+                const context::correlation_id*                           correlation_id)
 {
     CHECK(info && ctx);
     auto no_instrumentation = [&]() {
@@ -201,7 +201,7 @@ pre_kernel_call(const context::context*                                         
 void
 post_kernel_call(const context::context*                           ctx,
                  const std::shared_ptr<spm_counter_callback_info>& info,
-                 std::shared_ptr<hsa::Queue::queue_info_session_t>& /*ptr_session*/,
+                 std::shared_ptr<hsa::queue_info_session_t>& /*ptr_session*/,
                  inst_pkt_t& pkts,
                  kernel_dispatch::profiling_time /*dispatch_time*/)
 {

@@ -35,22 +35,22 @@ using ClientID   = int64_t;
 using inst_pkt_t = common::container::
     small_vector<std::pair<std::unique_ptr<rocprofiler::hsa::AQLPacket>, ClientID>, 4>;
 
-hsa::Queue::pkt_and_serialize_t
-pre_kernel_call(const context::context*                                         ctx,
-                const std::shared_ptr<spm_counter_callback_info>&               info,
-                const hsa::Queue&                                               queue,
-                const hsa::rocprofiler_packet&                                  pkt,
-                uint64_t                                                        kernel_id,
-                rocprofiler_dispatch_id_t                                       dispatch_id,
-                rocprofiler_user_data_t*                                        user_data,
-                const hsa::Queue::queue_info_session_t::external_corr_id_map_t& extern_corr_ids,
-                const context::correlation_id*                                  correlation_id);
+hsa::write_packet_t
+pre_kernel_call(const context::context*                                  ctx,
+                const std::shared_ptr<spm_counter_callback_info>&        info,
+                const hsa::Queue&                                        queue,
+                const hsa::rocprofiler_packet&                           pkt,
+                uint64_t                                                 kernel_id,
+                rocprofiler_dispatch_id_t                                dispatch_id,
+                rocprofiler_user_data_t*                                 user_data,
+                const hsa::queue_info_session_t::external_corr_id_map_t& extern_corr_ids,
+                const context::correlation_id*                           correlation_id);
 
 void
-post_kernel_call(const context::context*                            ctx,
-                 const std::shared_ptr<spm_counter_callback_info>&  info,
-                 std::shared_ptr<hsa::Queue::queue_info_session_t>& session,
-                 inst_pkt_t&                                        aql,
-                 kernel_dispatch::profiling_time                    dispatch_time);
+post_kernel_call(const context::context*                           ctx,
+                 const std::shared_ptr<spm_counter_callback_info>& info,
+                 std::shared_ptr<hsa::queue_info_session_t>&       session,
+                 inst_pkt_t&                                       aql,
+                 kernel_dispatch::profiling_time                   dispatch_time);
 }  // namespace spm
 }  // namespace rocprofiler

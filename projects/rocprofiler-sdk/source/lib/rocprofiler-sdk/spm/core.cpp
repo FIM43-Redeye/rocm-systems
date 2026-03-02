@@ -235,7 +235,7 @@ configure_callback_spm_dispatch(rocprofiler_context_id_t                       c
     // FIXME: Due to the clock gating issue, counter collection and PC sampling service
     // cannot coexist in the same context for now.
     if(ctx.pc_sampler) return ROCPROFILER_STATUS_ERROR_CONTEXT_CONFLICT;
-    if(ctx.counter_collection) return ROCPROFILER_STATUS_ERROR_CONTEXT_CONFLICT;
+    if(ctx.dispatch_counter_collection) return ROCPROFILER_STATUS_ERROR_CONTEXT_CONFLICT;
     if(ctx.device_counter_collection) return ROCPROFILER_STATUS_ERROR_CONTEXT_CONFLICT;
     if(!ctx.dispatch_spm)
         ctx.dispatch_spm =
@@ -284,31 +284,36 @@ start_context(const context::context* ctx)
             if(cb->queue_id != rocprofiler::hsa::ClientID{-1}) continue;
             cb->queue_id = controller->add_callback(
                 std::nullopt,
-                [=](const hsa::Queue&                                               q,
-                    const hsa::rocprofiler_packet&                                  kern_pkt,
-                    rocprofiler_kernel_id_t                                         kernel_id,
-                    rocprofiler_dispatch_id_t                                       dispatch_id,
-                    rocprofiler_user_data_t*                                        user_data,
-                    const hsa::Queue::queue_info_session_t::external_corr_id_map_t& extern_corr_ids,
-                    const context::correlation_id* correlation_id) {
-                    return pre_kernel_call(ctx,
-                                           cb,
-                                           q,
-                                           kern_pkt,
-                                           kernel_id,
-                                           dispatch_id,
-                                           user_data,
-                                           extern_corr_ids,
-                                           correlation_id);
-                },
-                // Completion CB
-                [=](const hsa::Queue& /* q */,
-                    hsa::rocprofiler_packet /* kern_pkt */,
-                    std::shared_ptr<hsa::Queue::queue_info_session_t>& session,
-                    inst_pkt_t&                                        aql,
-                    kernel_dispatch::profiling_time                    dispatch_time) {
-                    post_kernel_call(ctx, cb, session, aql, dispatch_time);
-                });
+                hsa::queue_callbacks_t{
+                    .batch_packets = []() { return false; },
+                    .write_interceptor =
+                        [=](const hsa::Queue&              q,
+                            const hsa::rocprofiler_packet& kern_pkt,
+                            rocprofiler_kernel_id_t        kernel_id,
+                            rocprofiler_dispatch_id_t      dispatch_id,
+                            rocprofiler_user_data_t*       user_data,
+                            const hsa::queue_info_session_t::external_corr_id_map_t&
+                                                           extern_corr_ids,
+                            const context::correlation_id* correlation_id) {
+                            return pre_kernel_call(ctx,
+                                                   cb,
+                                                   q,
+                                                   kern_pkt,
+                                                   kernel_id,
+                                                   dispatch_id,
+                                                   user_data,
+                                                   extern_corr_ids,
+                                                   correlation_id);
+                        },
+                    .signal_completion =
+                        [=](const hsa::Queue& /* q */,
+                            const hsa::rocprofiler_packet& /* kern_pkt */,
+                            std::shared_ptr<hsa::queue_info_session_t>& session,
+                            hsa::packet_data_t& /* pkt_data */,
+                            inst_pkt_t&                     aql,
+                            kernel_dispatch::profiling_time dispatch_time) {
+                            post_kernel_call(ctx, cb, session, aql, dispatch_time);
+                        }});
         }
     }
 

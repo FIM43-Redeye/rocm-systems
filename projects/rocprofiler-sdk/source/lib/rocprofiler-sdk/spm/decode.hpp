@@ -34,8 +34,8 @@ namespace spm
 {
 typedef struct values_vec_t
 {
-    std::vector<uint64_t> timestamps;
-    std::vector<uint64_t> values;
+    std::vector<uint64_t> timestamps{};
+    std::vector<uint64_t> values{};
 } values_vec_t;
 
 /** @brief SPM values for a counter
@@ -44,7 +44,7 @@ typedef struct values_vec_t
  */
 typedef struct instances_t
 {
-    std::vector<values_vec_t> shaders;
+    std::vector<values_vec_t> shaders{};
     bool                      is_global = false;
 } instances_t;
 
@@ -60,18 +60,18 @@ typedef struct instances_t
 
 typedef struct spm_descriptor_t
 {
-    void*  data;
-    size_t size;
-    size_t seg_size;
-    size_t buffer_num;
+    void*  data{nullptr};
+    size_t size{0};
+    size_t seg_size{0};
+    size_t buffer_num{0};
 } spm_descriptor_t;
 
 typedef std::vector<instances_t> counter_vec;
 
 typedef struct spm_counter_instance_t
 {
-    rocprofiler_counter_id_t id;
-    uint64_t                 instance;
+    rocprofiler_counter_id_t id{0};
+    uint64_t                 instance{0};
 } spm_counter_instance_t;
 
 /** @brief defines the layout of data buffer from spm_descriptor_t
