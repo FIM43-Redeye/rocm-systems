@@ -461,8 +461,8 @@ bool
 isSupportSpm(const Metric& metric, rocprofiler_agent_id_t agent_id)
 {
     if(metric.event().empty()) return false;
-    auto sym = rocprofiler::spm::construct_spm_interface();
-    if(!sym.has_value()) return false;
+    const auto* sym = rocprofiler::spm::construct_spm_interface();
+    if(!sym) return false;
     auto aql_agent       = *CHECK_NOTNULL(rocprofiler::agent::get_aql_agent((agent_id)));
     auto query_info      = rocprofiler::aql::get_query_info(agent_id, metric);
     auto pmc_event       = aqlprofile_pmc_event_t{};

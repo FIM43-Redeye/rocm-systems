@@ -1,6 +1,6 @@
 // MIT License
 //
-// Copyright (c) 2023-2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,26 +34,34 @@ namespace spm
  */
 struct spm_interface
 {
-    using spm_create_packets_fn_t     = decltype(aqlprofile_spm_create_packets);
-    using spm_delete_packets_fn_t     = decltype(aqlprofile_spm_delete_packets);
-    using spm_start_fn_t              = decltype(aqlprofile_spm_start);
-    using spm_stop_fn_t               = decltype(aqlprofile_spm_stop);
-    using spm_decode_stream_v1_fn_t   = decltype(aqlprofile_spm_decode_stream_v1);
-    using spm_decode_query_fn_t       = decltype(aqlprofile_spm_decode_query);
-    using spm_is_event_supported_fn_t = decltype(aqlprofile_spm_is_event_supported);
+    using spm_create_packets_fn_t           = decltype(aqlprofile_spm_create_packets);
+    using spm_delete_packets_fn_t           = decltype(aqlprofile_spm_delete_packets);
+    using spm_start_fn_t                    = decltype(aqlprofile_spm_start);
+    using spm_stop_fn_t                     = decltype(aqlprofile_spm_stop);
+    using spm_decode_stream_v1_fn_t         = decltype(aqlprofile_spm_decode_stream_v1);
+    using spm_decode_query_fn_t             = decltype(aqlprofile_spm_decode_query);
+    using spm_is_event_supported_fn_t       = decltype(aqlprofile_spm_is_event_supported);
+    using spm_query_agent_capabilities_fn_t = decltype(aqlprofile_spm_query_agent_capabilities);
 
-    spm_create_packets_fn_t*     spm_create_packets     = nullptr;
-    spm_delete_packets_fn_t*     spm_delete_packets     = nullptr;
-    spm_start_fn_t*              spm_start              = nullptr;
-    spm_stop_fn_t*               spm_stop               = nullptr;
-    spm_decode_stream_v1_fn_t*   spm_decode_stream_v1   = nullptr;
-    spm_decode_query_fn_t*       spm_decode_query       = nullptr;
-    spm_is_event_supported_fn_t* spm_is_event_supported = nullptr;
-    void*                        handle                 = nullptr;
+    spm_create_packets_fn_t*           spm_create_packets           = nullptr;
+    spm_delete_packets_fn_t*           spm_delete_packets           = nullptr;
+    spm_start_fn_t*                    spm_start                    = nullptr;
+    spm_stop_fn_t*                     spm_stop                     = nullptr;
+    spm_decode_stream_v1_fn_t*         spm_decode_stream_v1         = nullptr;
+    spm_decode_query_fn_t*             spm_decode_query             = nullptr;
+    spm_is_event_supported_fn_t*       spm_is_event_supported       = nullptr;
+    spm_query_agent_capabilities_fn_t* spm_query_agent_capabilities = nullptr;
+    void*                              handle                       = nullptr;
+
+    spm_interface() = default;
     ~spm_interface();
+    spm_interface(const spm_interface&) = delete;
+    spm_interface& operator=(const spm_interface&) = delete;
+    spm_interface(spm_interface&&)                 = default;
+    spm_interface& operator=(spm_interface&&) = default;
 };
 
-std::optional<spm_interface>
+const spm_interface*
 construct_spm_interface();
 
 }  // namespace spm

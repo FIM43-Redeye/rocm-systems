@@ -1,6 +1,6 @@
 // MIT License
 //
-// Copyright (c) 2023-2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -36,36 +36,47 @@ namespace rocprofiler
 {
 namespace spm
 {
-std::optional<spm_interface>
+const spm_interface*
 construct_spm_interface()
 {
-    auto interface = spm_interface();
-    if(!interface.handle) interface.handle = dlopen("libhsa-amd-aqlprofile64.so", RTLD_LAZY);
+    static std::once_flag                 flag;
+    static std::unique_ptr<spm_interface> cached;
 
-    if(!interface.handle)
-    {
-        ROCP_CI_LOG(WARNING) << fmt::format("aqlprofile cannot be opened");
-        return std::nullopt;
-    }
+    std::call_once(flag, []() {
+        auto iface    = std::make_unique<spm_interface>();
+        iface->handle = dlopen("libhsa-amd-aqlprofile64.so", RTLD_LAZY);
 
-    interface.spm_create_packets = (spm_interface::spm_create_packets_fn_t*) dlsym(
-        interface.handle, "aqlprofile_spm_create_packets");
-    interface.spm_delete_packets = (spm_interface::spm_delete_packets_fn_t*) dlsym(
-        interface.handle, "aqlprofile_spm_delete_packets");
-    interface.spm_start =
-        (spm_interface::spm_start_fn_t*) dlsym(interface.handle, "aqlprofile_spm_start");
-    interface.spm_stop =
-        (spm_interface::spm_stop_fn_t*) dlsym(interface.handle, "aqlprofile_spm_stop");
-    interface.spm_decode_stream_v1 = (spm_interface::spm_decode_stream_v1_fn_t*) dlsym(
-        interface.handle, "aqlprofile_spm_decode_stream_v1");
-    interface.spm_decode_query = (spm_interface::spm_decode_query_fn_t*) dlsym(
-        interface.handle, "aqlprofile_spm_decode_query");
-    interface.spm_is_event_supported = (spm_interface::spm_is_event_supported_fn_t*) dlsym(
-        interface.handle, "aqlprofile_spm_is_event_supported");
-    return interface;
+        if(!iface->handle)
+        {
+            ROCP_CI_LOG(WARNING) << fmt::format("aqlprofile cannot be opened");
+            return;
+        }
+
+        iface->spm_create_packets = (spm_interface::spm_create_packets_fn_t*) dlsym(
+            iface->handle, "aqlprofile_spm_create_packets");
+        iface->spm_delete_packets = (spm_interface::spm_delete_packets_fn_t*) dlsym(
+            iface->handle, "aqlprofile_spm_delete_packets");
+        iface->spm_start =
+            (spm_interface::spm_start_fn_t*) dlsym(iface->handle, "aqlprofile_spm_start");
+        iface->spm_stop =
+            (spm_interface::spm_stop_fn_t*) dlsym(iface->handle, "aqlprofile_spm_stop");
+        iface->spm_decode_stream_v1 = (spm_interface::spm_decode_stream_v1_fn_t*) dlsym(
+            iface->handle, "aqlprofile_spm_decode_stream_v1");
+        iface->spm_decode_query = (spm_interface::spm_decode_query_fn_t*) dlsym(
+            iface->handle, "aqlprofile_spm_decode_query");
+        iface->spm_is_event_supported = (spm_interface::spm_is_event_supported_fn_t*) dlsym(
+            iface->handle, "aqlprofile_spm_is_event_supported");
+        iface->spm_query_agent_capabilities =
+            (spm_interface::spm_query_agent_capabilities_fn_t*) dlsym(
+                iface->handle, "aqlprofile_spm_query_agent_capabilities");
+        cached = std::move(iface);
+    });
+
+    return cached.get();
 }
 spm_interface::~spm_interface()
 {
+    // Only the cached singleton owns the dlopen handle; copies/moves clear their handle
     if(handle) dlclose(handle);
 }
 }  // namespace spm
