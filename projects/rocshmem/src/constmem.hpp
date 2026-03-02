@@ -32,6 +32,8 @@ namespace rocshmem {
 
 struct constmem_t {
   uint64_t alltoall_wg_algo;
+  size_t   gda_put_wave_threshold;
+  size_t   gda_put_wave_nbi_threshold;
 } __attribute__ ((aligned (16)));
 
 extern __constant__ constmem_t constmem;

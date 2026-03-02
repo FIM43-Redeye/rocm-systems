@@ -516,6 +516,8 @@ namespace envvar {
     extern const var<bool> pcie_relaxed_ordering;
     extern const var<bool> enable_dmabuf;
     extern const var<std::string> alltoallv_wg_algo;
+    extern const var<size_t> put_wave_threshold;
+    extern const var<size_t> put_wave_nbi_threshold;
   }  // namespace gda
 }  // namespace envvar
 }  // namespace rocshmem

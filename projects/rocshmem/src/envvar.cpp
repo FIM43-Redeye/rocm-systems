@@ -72,6 +72,8 @@ namespace envvar {
     const var<bool> pcie_relaxed_ordering("PCIE_RELAXED_ORDERING", "", false);
     const var<bool> enable_dmabuf("ENABLE_DMABUF", "", false);
     const var<std::string> alltoallv_wg_algo("ALLTOALLV_WG_ALGO", "");
+    const var<size_t> put_wave_threshold ("PUT_WAVE_THRESHOLD", "", 8192);
+    const var<size_t> put_wave_nbi_threshold ("PUT_WAVE_NBI_THRESHOLD", "", 4096);
   }  // namespace gda
 
   namespace _detail {

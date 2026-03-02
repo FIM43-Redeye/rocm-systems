@@ -226,7 +226,8 @@ __device__ void GDAContext::getmem_nbi_wg(void *dest, const void *source,
 __device__ void GDAContext::putmem_wave(void *dest, const void *source,
                                         size_t nelems, int pe) {
   int local_pe{-1};
-  if (ipcImpl_.isIpcAvailable(my_pe, pe, &local_pe)) {
+  if (nelems < constmem.gda_put_wave_threshold &&
+      ipcImpl_.isIpcAvailable(my_pe, pe, &local_pe)) {
     uint64_t L_offset = reinterpret_cast<char *>(dest) - ipcImpl_.ipc_bases[ipcImpl_.shm_rank];
     ipcImpl_.ipcCopy_wave(ipcImpl_.ipc_bases[local_pe] + L_offset, const_cast<void *>(source), nelems);
     return;
@@ -253,7 +254,8 @@ __device__ void GDAContext::getmem_wave(void *dest, const void *source,
 __device__ void GDAContext::putmem_nbi_wave(void *dest, const void *source,
                                             size_t nelems, int pe) {
   int local_pe{-1};
-  if (ipcImpl_.isIpcAvailable(my_pe, pe, &local_pe)) {
+  if (nelems < constmem.gda_put_wave_nbi_threshold &&
+      ipcImpl_.isIpcAvailable(my_pe, pe, &local_pe)) {
     uint64_t L_offset = reinterpret_cast<char *>(dest) - ipcImpl_.ipc_bases[ipcImpl_.shm_rank];
     ipcImpl_.ipcCopy_wave(ipcImpl_.ipc_bases[local_pe] + L_offset, const_cast<void *>(source), nelems);
     return;

@@ -19,6 +19,9 @@ void init_constant_memory(void) {
     constmem_values.alltoall_wg_algo = gda::ALLTOALLV_WG_ALGO_COPY;
   }
 
+  constmem_values.gda_put_wave_threshold     = envvar::gda::put_wave_threshold;
+  constmem_values.gda_put_wave_nbi_threshold = envvar::gda::put_wave_nbi_threshold;
+
   CHECK_HIP(hipMemcpyToSymbol(HIP_SYMBOL(constmem), &constmem_values, sizeof(constmem_t)));
 }
 
