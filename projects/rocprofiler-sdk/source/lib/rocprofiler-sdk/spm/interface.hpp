@@ -32,30 +32,29 @@ namespace spm
 {
 /** @brief Wrapper to aqlprofile functions for SPM
  */
-class spm_interface
+struct spm_interface
 {
-public:
-
-    using spm_create_packets_fn_t = decltype(aqlprofile_spm_create_packets);
-    using spm_delete_packets_fn_t = decltype(aqlprofile_spm_delete_packets);
-    using spm_start_fn_t   = decltype(aqlprofile_spm_start);
-    using spm_stop_fn_t    = decltype(aqlprofile_spm_stop);
+    using spm_create_packets_fn_t     = decltype(aqlprofile_spm_create_packets);
+    using spm_delete_packets_fn_t     = decltype(aqlprofile_spm_delete_packets);
+    using spm_start_fn_t              = decltype(aqlprofile_spm_start);
+    using spm_stop_fn_t               = decltype(aqlprofile_spm_stop);
     using spm_decode_stream_v1_fn_t   = decltype(aqlprofile_spm_decode_stream_v1);
-    using spm_decode_query_fn_t    = decltype(aqlprofile_spm_decode_query);
+    using spm_decode_query_fn_t       = decltype(aqlprofile_spm_decode_query);
     using spm_is_event_supported_fn_t = decltype(aqlprofile_spm_is_event_supported);
 
-
-    spm_create_packets_fn_t*  spm_create_packets = nullptr;
-    spm_delete_packets_fn_t*  spm_delete_packets = nullptr;
-    spm_start_fn_t*   spm_start      = nullptr;
-    spm_stop_fn_t*    spm_stop       = nullptr;
-    spm_decode_stream_v1_fn_t*   spm_decode_stream_v1     = nullptr;
-    spm_decode_query_fn_t*   spm_decode_query      = nullptr;
-    spm_is_event_supported_fn_t * spm_is_event_supported = nullptr;
+    spm_create_packets_fn_t*     spm_create_packets     = nullptr;
+    spm_delete_packets_fn_t*     spm_delete_packets     = nullptr;
+    spm_start_fn_t*              spm_start              = nullptr;
+    spm_stop_fn_t*               spm_stop               = nullptr;
+    spm_decode_stream_v1_fn_t*   spm_decode_stream_v1   = nullptr;
+    spm_decode_query_fn_t*       spm_decode_query       = nullptr;
+    spm_is_event_supported_fn_t* spm_is_event_supported = nullptr;
+    void*                        handle                 = nullptr;
+    ~spm_interface();
 };
 
 std::optional<spm_interface>
-construct_spm_interface(void* handle = nullptr);
+construct_spm_interface();
 
 }  // namespace spm
 }  // namespace rocprofiler

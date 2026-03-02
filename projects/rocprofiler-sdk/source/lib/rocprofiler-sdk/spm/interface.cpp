@@ -36,28 +36,37 @@ namespace rocprofiler
 {
 namespace spm
 {
-
 std::optional<spm_interface>
-construct_spm_interface(void* handle)
+construct_spm_interface()
 {
-   
-    if(!handle) handle = dlopen("libhsa-amd-aqlprofile64.so.1", RTLD_NOLOAD | RTLD_LAZY);
+    auto interface = spm_interface();
+    if(!interface.handle) interface.handle = dlopen("libhsa-amd-aqlprofile64.so", RTLD_LAZY);
 
-    if(!handle)
+    if(!interface.handle)
     {
         ROCP_CI_LOG(WARNING) << fmt::format("aqlprofile cannot be opened");
-        return  std::nullopt;
+        return std::nullopt;
     }
-    auto interface = spm_interface(); 
-    interface.spm_create_packets = (spm_interface::spm_create_packets_fn_t*) dlsym(handle, "aqlprofile_spm_create_packets");
-    interface.spm_delete_packets = (spm_interface::spm_delete_packets_fn_t*) dlsym(handle, "aqlprofile_spm_delete_packets");
-    interface.spm_start      = (spm_interface::spm_start_fn_t*) dlsym(handle, "aqlprofile_spm_start");
-    interface.spm_stop      = (spm_interface::spm_stop_fn_t*) dlsym(handle, "aqlprofile_spm_stop");
-    interface.spm_decode_stream_v1     = (spm_interface::spm_decode_stream_v1_fn_t*) dlsym(handle, "aqlprofile_spm_decode_stream_v1");
-    interface.spm_decode_query     = (spm_interface::spm_decode_query_fn_t*) dlsym(handle, "aqlprofile_spm_decode_query");
-    interface.spm_is_event_supported  = (spm_interface::spm_is_event_supported_fn_t*) dlsym(handle, "aqlprofile_spm_is_event_supported");
+
+    interface.spm_create_packets = (spm_interface::spm_create_packets_fn_t*) dlsym(
+        interface.handle, "aqlprofile_spm_create_packets");
+    interface.spm_delete_packets = (spm_interface::spm_delete_packets_fn_t*) dlsym(
+        interface.handle, "aqlprofile_spm_delete_packets");
+    interface.spm_start =
+        (spm_interface::spm_start_fn_t*) dlsym(interface.handle, "aqlprofile_spm_start");
+    interface.spm_stop =
+        (spm_interface::spm_stop_fn_t*) dlsym(interface.handle, "aqlprofile_spm_stop");
+    interface.spm_decode_stream_v1 = (spm_interface::spm_decode_stream_v1_fn_t*) dlsym(
+        interface.handle, "aqlprofile_spm_decode_stream_v1");
+    interface.spm_decode_query = (spm_interface::spm_decode_query_fn_t*) dlsym(
+        interface.handle, "aqlprofile_spm_decode_query");
+    interface.spm_is_event_supported = (spm_interface::spm_is_event_supported_fn_t*) dlsym(
+        interface.handle, "aqlprofile_spm_is_event_supported");
     return interface;
 }
-
+spm_interface::~spm_interface()
+{
+    if(handle) dlclose(handle);
+}
 }  // namespace spm
 }  // namespace rocprofiler

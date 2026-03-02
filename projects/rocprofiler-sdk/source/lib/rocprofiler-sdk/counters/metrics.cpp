@@ -425,7 +425,7 @@ operator==(Metric const& lhs, Metric const& rhs)
     };
     return get_tie(lhs) == get_tie(rhs);
 }
-Metric::Metric(std::string arch,
+Metric::Metric(const std::string&,
                std::string name,
                std::string block,
                std::string event,
@@ -458,19 +458,13 @@ Metric::Metric(std::string arch,
 }
 
 bool
-isSupportSpm(const Metric& metric)
+isSupportSpm(const Metric& metric, rocprofiler_agent_id_t agent_id)
 {
-    auto agents = rocprofiler::agent::get_agents();
-
-    const auto itr = std::find_if(agents.begin(), agents.end(), [&](const auto* agent) {
-        return std::string_view(agent->name) == std::string_view(metric.arch());
-    });
-    if(itr == agents.end()) return false;
     if(metric.event().empty()) return false;
     auto sym = rocprofiler::spm::construct_spm_interface();
     if(!sym.has_value()) return false;
-    auto aql_agent       = *CHECK_NOTNULL(rocprofiler::agent::get_aql_agent((*itr)->id));
-    auto query_info      = rocprofiler::aql::get_query_info((*itr)->id, metric);
+    auto aql_agent       = *CHECK_NOTNULL(rocprofiler::agent::get_aql_agent((agent_id)));
+    auto query_info      = rocprofiler::aql::get_query_info(agent_id, metric);
     auto pmc_event       = aqlprofile_pmc_event_t{};
     pmc_event.block_name = static_cast<hsa_ven_amd_aqlprofile_block_name_t>(query_info.id);
     pmc_event.event_id   = static_cast<uint32_t>(std::stoul(metric.event().c_str(), nullptr));

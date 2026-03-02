@@ -293,7 +293,10 @@ rocprofiler_query_counter_info(rocprofiler_counter_id_t              counter_id,
 
     auto spm_info = [&](auto& out_struct) {
         if(const auto* metric_ptr = common::get_val(id_map, static_cast<uint64_t>(base_metric_id)))
-            out_struct.spm_support = isSupportSpm(*metric_ptr);
+        {
+            auto agent_id          = counters::get_first_agent_for_metric(counter_id);
+            out_struct.spm_support = isSupportSpm(*metric_ptr, agent_id);
+        }
         return false;
     };
     switch(version)
