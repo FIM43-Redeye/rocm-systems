@@ -117,8 +117,8 @@ aql_data_callback(size_t buffer_id, void* data, size_t data_size, int flags, voi
         v.shaders.resize(4);
 
     // Decode SPM data and return vector of instances_t in counters list.
-    auto status =
-        spm_packet->sym->spm_decode_stream_v1(spm_packet->aql_desc, decode_cb, data, data_size, &counters);
+    auto status = spm_packet->sym->spm_decode_stream_v1(
+        spm_packet->aql_desc, decode_cb, data, data_size, &counters);
 
     if(status != HSA_STATUS_SUCCESS) return;
 
@@ -170,7 +170,7 @@ aql_data_callback(size_t buffer_id, void* data, size_t data_size, int flags, voi
                         .agent_id =
                             (rocprofiler::agent::get_rocprofiler_agent(spm_packet->GetAgent()))->id,
                         .timestamp = times[it],
-                        .value     =  static_cast<double>(values[it])});
+                        .value     = static_cast<double>(values[it])});
             }
         }
     }
@@ -190,12 +190,13 @@ aql_data_callback(size_t buffer_id, void* data, size_t data_size, int flags, voi
     else
     {
         // Return the buffer of SPM records to the tool
-        spm_packet->record_cb(&(spm_packet->dispatch_data),
-                              records.data(),
-                              records.size(),
-                              1 << ROCPROFILER_SPM_RECORD_FLAG_DATA | flags << ROCPROFILER_SPM_RECORD_FLAG_DATA_LOST,
-                              spm_packet->user_data,
-                              spm_packet->record_callback_args);
+        spm_packet->record_cb(
+            &(spm_packet->dispatch_data),
+            records.data(),
+            records.size(),
+            1 << ROCPROFILER_SPM_RECORD_FLAG_DATA | flags << ROCPROFILER_SPM_RECORD_FLAG_DATA_LOST,
+            spm_packet->user_data,
+            spm_packet->record_callback_args);
         for(const auto* itr : records)
             delete(itr);
         records.clear();

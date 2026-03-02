@@ -52,10 +52,10 @@ extern "C" {
  * @return ::rocprofiler_status_t
  */
 rocprofiler_status_t
-rocprofiler_spm_create_counter_config(rocprofiler_agent_id_t               agent_id,
-                                      rocprofiler_counter_id_t*            counters_list,
-                                      size_t                               counters_count,
-                                      rocprofiler_spm_configuration_t*     parameters,
+rocprofiler_spm_create_counter_config(rocprofiler_agent_id_t           agent_id,
+                                      rocprofiler_counter_id_t*        counters_list,
+                                      size_t                           counters_count,
+                                      rocprofiler_spm_configuration_t* parameters,
                                       rocprofiler_counter_config_id_t* config_id)
 {
     auto sym = rocprofiler::spm::construct_spm_interface();
@@ -86,7 +86,7 @@ rocprofiler_spm_create_counter_config(rocprofiler_agent_id_t               agent
         if(!already_added.emplace(metric_ptr->id()).second) continue;
 
         if(!rocprofiler::counters::checkValidMetric(std::string(agent->name), *metric_ptr) ||
-           !rocprofiler::counters::isSupportSpm(*metric_ptr))
+           !rocprofiler::counters::isSupportSpm(*metric_ptr, agent->id))
         {
             return ROCPROFILER_STATUS_ERROR_METRIC_NOT_VALID_FOR_AGENT;
         }
@@ -185,7 +185,7 @@ rocprofiler_iterate_spm_supported_counters(rocprofiler_agent_id_t              a
 
     for(const auto& m : metrics)
     {
-        if(rocprofiler::counters::isSupportSpm(m))
+        if(rocprofiler::counters::isSupportSpm(m, agent->id))
         {
             // Create agent-encoded counter ID using the agent's logical_node_id
             rocprofiler_counter_id_t counter_id{.handle = 0};
