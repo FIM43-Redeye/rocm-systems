@@ -30,7 +30,7 @@
 #include "lib/common/utility.hpp"
 #include "lib/rocprofiler-sdk/agent.hpp"
 #include "lib/rocprofiler-sdk/aql/helpers.hpp"
-#include "lib/rocprofiler-sdk/spm/dlsym.hpp"
+#include "lib/rocprofiler-sdk/spm/interface.hpp"
 
 #include <rocprofiler-sdk/fwd.h>
 #include <rocprofiler-sdk/cxx/details/tokenize.hpp>
@@ -462,19 +462,19 @@ isSupportSpm(const Metric& metric)
 {
     auto agents = rocprofiler::agent::get_agents();
 
-    const auto it = std::find_if(agents.begin(), agents.end(), [&](const auto* agent) {
+    const auto itr = std::find_if(agents.begin(), agents.end(), [&](const auto* agent) {
         return std::string_view(agent->name) == std::string_view(metric.arch());
     });
-    if(it == agents.end()) return false;
+    if(itr == agents.end()) return false;
     if(metric.event().empty()) return false;
-    auto sym = rocprofiler::spm::Dlsym{};
-    if(!sym.valid()) return false;
-    auto aql_agent       = *CHECK_NOTNULL(rocprofiler::agent::get_aql_agent((*it)->id));
-    auto query_info      = rocprofiler::aql::get_query_info((*it)->id, metric);
+    auto sym = rocprofiler::spm::construct_spm_interface();
+    if(!sym.has_value()) return false;
+    auto aql_agent       = *CHECK_NOTNULL(rocprofiler::agent::get_aql_agent((*itr)->id));
+    auto query_info      = rocprofiler::aql::get_query_info((*itr)->id, metric);
     auto pmc_event       = aqlprofile_pmc_event_t{};
     pmc_event.block_name = static_cast<hsa_ven_amd_aqlprofile_block_name_t>(query_info.id);
     pmc_event.event_id   = static_cast<uint32_t>(std::stoul(metric.event().c_str(), nullptr));
-    return sym.is_supported_fn(aql_agent, pmc_event);
+    return sym->spm_is_event_supported(aql_agent, pmc_event);
 }
 
 }  // namespace counters
