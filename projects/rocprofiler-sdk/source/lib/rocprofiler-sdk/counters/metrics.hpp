@@ -46,7 +46,7 @@ class Metric
 {
 public:
     Metric() = default;
-    Metric(const std::string& arch, 
+    Metric(std::string arch,
            std::string name,
            std::string block,
            std::string event,

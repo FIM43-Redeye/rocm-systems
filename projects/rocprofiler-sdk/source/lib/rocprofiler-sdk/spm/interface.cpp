@@ -48,7 +48,7 @@ construct_spm_interface(void* handle)
         ROCP_CI_LOG(WARNING) << fmt::format("aqlprofile cannot be opened");
         return  std::nullopt;
     }
-    auto interface = spm_interface();
+    auto interface = spm_interface(); 
     interface.spm_create_packets = (spm_interface::spm_create_packets_fn_t*) dlsym(handle, "aqlprofile_spm_create_packets");
     interface.spm_delete_packets = (spm_interface::spm_delete_packets_fn_t*) dlsym(handle, "aqlprofile_spm_delete_packets");
     interface.spm_start      = (spm_interface::spm_start_fn_t*) dlsym(handle, "aqlprofile_spm_start");

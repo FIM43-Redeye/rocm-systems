@@ -425,7 +425,7 @@ operator==(Metric const& lhs, Metric const& rhs)
     };
     return get_tie(lhs) == get_tie(rhs);
 }
-Metric::Metric(const std::string& arch,
+Metric::Metric(std::string arch,
                std::string name,
                std::string block,
                std::string event,
