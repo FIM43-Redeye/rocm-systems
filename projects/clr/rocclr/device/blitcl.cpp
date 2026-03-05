@@ -47,6 +47,50 @@ const char* BlitLinearSourceCode = BLIT_KERNELS(
 
     extern void __ockl_dm_init_v1(ulong, ulong, uint, uint);
 
+    __attribute__((always_inline)) inline ulong __amd_alignUp(ulong ptr, ulong alignment) {
+      return (ptr + alignment - 1) & ~(alignment - 1);
+    } __kernel void __amd_rocclr_fillBufferUnAligned(__global void* __restrict buf,
+                                                     __constant uchar* __restrict pattern,
+                                                     int body_pattern, ulong2 body_tile_pattern,
+                                                     ulong body_tile_count, ulong body_tile_passes,
+                                                     ulong stride, ulong body_count,
+                                                     ulong body_tail_count, ulong head_count,
+                                                     ulong tail_count, ulong pattern_size) {
+      uint l = __builtin_amdgcn_workitem_id_x();
+      uint g = __builtin_amdgcn_workgroup_id_x();
+      ulong id = (g * 256 + l);
+
+      __global uchar* head_tail_element = (__global uchar*)buf;
+      __global ulong2* element_tiled =
+          ((__global ulong2*)__amd_alignUp((ulong)buf, sizeof(ulong2)));
+
+      // Handle head, body and tail
+      __global int* body_element = (__global int*)__amd_alignUp((ulong)buf, sizeof(int));
+      if (id < head_count) {  // Copy head
+        head_tail_element[id] = pattern[id & (pattern_size - 1)];
+      } else if ((id >= head_count) && (id < head_count + body_count)) {
+        // Copy shifted body_pattern
+        body_element[id - head_count] = body_pattern;
+      } else if ((id >= head_count + body_count) &&
+                 (id < head_count + body_count + body_tail_count)) {
+        // Copy shifted body_pattern to the region just before the final tail bytes
+        __global int* body_tail_element = body_element + body_count + body_tile_count * 4;
+        body_tail_element[id - (head_count + body_count)] = body_pattern;
+      } else if ((id >= head_count + body_count + body_tail_count) &&
+                 (id < head_count + body_count + body_tail_count + tail_count)) {
+        const ulong tail_offset = head_count + body_count * sizeof(int) +
+                                  body_tile_count * sizeof(ulong2) + body_tail_count * sizeof(int);
+        const ulong tail_id = id - (head_count + body_count + body_tail_count);
+        head_tail_element[tail_offset + tail_id] = pattern[tail_id & (pattern_size - 1)];
+      }
+
+      // We pass in the number of passes from the CPU to get the best code-gen
+      // We use the number of passes and the size to get correct behiaviour
+      for (ulong j = 0; (j < body_tile_passes) && (j * stride + id < body_tile_count); ++j) {
+        element_tiled[j * stride + id] = body_tile_pattern;
+      }
+    }
+
     __kernel void __amd_rocclr_fillBufferAligned(__global void* buf, __constant uchar* pattern,
                                                  uint pattern_size, uint alignment, ulong end_ptr,
                                                  uint next_chunk, uint workgroup_size) {
