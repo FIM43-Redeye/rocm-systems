@@ -41,11 +41,11 @@ __host__ GDAHostContext::GDAHostContext(Backend *backend,
 
   context_window_info = host_interface->acquire_window_context();
 
-  int *pes_with_ipc_avail = new int[backend->ipcImpl.shm_size];
+  int *intra_node_pe_array = new int[backend->ipcImpl.shm_size];
   char** ipc_bases = new char*[b->ipcImpl.shm_size];
-  if (backend->ipcImpl.pes_with_ipc_avail != nullptr) {
-    CHECK_HIP(hipMemcpy(pes_with_ipc_avail,
-                  backend->ipcImpl.pes_with_ipc_avail,
+  if (backend->ipcImpl.intra_node_pe_array != nullptr) {
+    CHECK_HIP(hipMemcpy(intra_node_pe_array,
+                  backend->ipcImpl.intra_node_pe_array,
                   backend->ipcImpl.shm_size * sizeof(int),
                   hipMemcpyDeviceToHost));
     CHECK_HIP(hipMemcpy(ipc_bases,
@@ -53,14 +53,14 @@ __host__ GDAHostContext::GDAHostContext(Backend *backend,
                   backend->ipcImpl.shm_size * sizeof(char *),
                   hipMemcpyDeviceToHost));
   }
-  ipcImpl_.pes_with_ipc_avail = pes_with_ipc_avail;
+  ipcImpl_.intra_node_pe_array = intra_node_pe_array;
   ipcImpl_.ipc_bases = ipc_bases;
   ipcImpl_.shm_size = backend->ipcImpl.shm_size;
   ipcImpl_.shm_rank = backend->ipcImpl.shm_rank;
 }
 
 __host__ GDAHostContext::~GDAHostContext() {
-  delete[] ipcImpl_.pes_with_ipc_avail;
+  delete[] ipcImpl_.intra_node_pe_array;
   delete[] ipcImpl_.ipc_bases;
 
   host_interface->release_window_context(context_window_info);

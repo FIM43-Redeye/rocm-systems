@@ -51,7 +51,9 @@ class IpcOnImpl {
 
   char **ipc_bases{nullptr};
 
-  int *pes_with_ipc_avail{nullptr};
+  int *intra_node_pe_array{nullptr};
+  int *inter_node_pe_array{nullptr};
+  int inter_node_pe_size = 0;
 
   __host__ void ipcHostInit(int my_pe, const HEAP_BASES_T &heap_bases,
                             MPI_Comm thread_comm);
@@ -62,10 +64,10 @@ class IpcOnImpl {
   __host__ void ipcHostStop();
 
   __host__ __device__ bool isIpcAvailable(int my_pe, int target_pe, int *local_target_pe) {
-    if (nullptr == pes_with_ipc_avail) { return false; }
+    if (nullptr == intra_node_pe_array) { return false; }
 
     for (int i=0; i<shm_size; i++) {
-      if (pes_with_ipc_avail[i] == target_pe) {
+      if (intra_node_pe_array[i] == target_pe) {
         *local_target_pe = i;
         return true;
       }
@@ -171,7 +173,9 @@ class IpcOffImpl {
 
   char **ipc_bases{nullptr};
 
-  int *pes_with_ipc_avail{nullptr};
+  int *intra_node_pe_array{nullptr};
+  int *inter_node_pe_array{nullptr};
+  int inter_node_pe_size = 0;
 
   __host__ void ipcHostInit(int my_pe, const HEAP_BASES_T &heap_bases,
                             MPI_Comm thread_comm) {}

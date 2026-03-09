@@ -116,8 +116,8 @@ __host__ void IpcOnImpl::ipcHostInit(int my_pe, const HEAP_BASES_T &heap_bases,
     }
   }
   auto disable_ipc = envvar::disable_mixed_ipc || envvar::ro::disable_ipc || envvar::disable_ipc;
-  if (!disable_ipc) {
-    CHECK_HIP(hipMalloc(reinterpret_cast<void**>(&pes_with_ipc_avail), shm_size * sizeof(int)));
+  if (!disable_ipc && shm_size > 0) {
+    CHECK_HIP(hipMalloc(reinterpret_cast<void**>(&intra_node_pe_array), shm_size * sizeof(int)));
 
     MPI_Group thread_grp;
     MPI_Group shm_grp;
@@ -126,10 +126,29 @@ __host__ void IpcOnImpl::ipcHostInit(int my_pe, const HEAP_BASES_T &heap_bases,
     int *seqranks = new int[shm_size];
     for(int i = 0; i < shm_size; i++)
       seqranks[i] = i;
-    mpilib_ftable_.Group_translate_ranks(shm_grp, shm_size, seqranks, thread_grp, pes_with_ipc_avail);
+    mpilib_ftable_.Group_translate_ranks(shm_grp, shm_size, seqranks, thread_grp, intra_node_pe_array);
     delete [] seqranks;
     mpilib_ftable_.Group_free(&shm_grp);
     mpilib_ftable_.Group_free(&thread_grp);
+  }
+
+  int world_size;
+  mpilib_ftable_.Comm_size(MPI_COMM_WORLD, &world_size);
+
+  inter_node_pe_size = nullptr == intra_node_pe_array
+                     ? world_size
+                     : world_size - shm_size;
+
+  CHECK_HIP(hipMalloc((void**)&inter_node_pe_array, inter_node_pe_size * sizeof(int)));
+
+  int inter_node_idx = 0;
+  for (int i=0; i<world_size; i++) {
+    int tmp;
+
+    if (!isIpcAvailable(my_pe, i, &tmp)) {
+      inter_node_pe_array[inter_node_idx] = i;
+      inter_node_idx++;
+    }
   }
 }
 
@@ -200,9 +219,27 @@ __host__ void IpcOnImpl::ipcHostInit(int my_pe, const HEAP_BASES_T &heap_bases,
     }
   }
   auto disable_ipc = envvar::disable_mixed_ipc || envvar::ro::disable_ipc || envvar::disable_ipc;
-  if (!disable_ipc) {
-    CHECK_HIP(hipMalloc(reinterpret_cast<void**>(&pes_with_ipc_avail), shm_size * sizeof(int)));
-    std::copy(shm_ranks.begin(), shm_ranks.end(), pes_with_ipc_avail);
+  if (!disable_ipc && shm_size > 0) {
+    CHECK_HIP(hipMalloc(reinterpret_cast<void**>(&intra_node_pe_array), shm_size * sizeof(int)));
+    std::copy(shm_ranks.begin(), shm_ranks.end(), intra_node_pe_array);
+  }
+
+  int world_size = bootstr->getNranks();
+
+  inter_node_pe_size = nullptr == intra_node_pe_array
+                     ? world_size
+                     : world_size - shm_size;
+
+  CHECK_HIP(hipMalloc((void**)&inter_node_pe_array, inter_node_pe_size * sizeof(int)));
+
+  int inter_node_idx = 0;
+  for (int i=0; i<world_size; i++) {
+    int tmp;
+
+    if (!isIpcAvailable(my_pe, i, &tmp)) {
+      inter_node_pe_array[inter_node_idx] = i;
+      inter_node_idx++;
+    }
   }
 }
 
@@ -216,9 +253,11 @@ __host__ void IpcOnImpl::ipcHostStop() {
   }
   CHECK_HIP(hipFree(ipc_bases));
 
-  if (nullptr != pes_with_ipc_avail) {
-    CHECK_HIP(hipFree(pes_with_ipc_avail));
+  if (nullptr != intra_node_pe_array) {
+    CHECK_HIP(hipFree(intra_node_pe_array));
   }
+
+  CHECK_HIP(hipFree(inter_node_pe_array));
 }
 
 __device__ void IpcOnImpl::ipcCopy(void *dst, void *src, size_t size) {

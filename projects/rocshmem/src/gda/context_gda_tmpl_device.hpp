@@ -610,7 +610,8 @@ __device__ void GDAContext::internal_broadcast(T *dst, const T *src, int nelems,
 template <typename T>
 __device__ void GDAContext::alltoall(rocshmem_team_t team, T *dst,
                                      const T *src, int nelems) {
-  alltoall_linear_thread_puts(team, dst, src, nelems);
+  alltoall_wave_specialisation(team, dst, src, nelems);
+  //alltoall_linear_thread_puts(team, dst, src, nelems);
 }
 
 template <typename T>
@@ -802,6 +803,89 @@ __device__ void GDAContext::alltoall_linear(rocshmem_team_t team, T *dst,
 
   // wait until everyone has obtained their designated data
   internal_sync_wg(my_pe, pe_start, stride, pe_size, pSync);
+}
+
+template <typename T>
+__device__ void GDAContext::alltoall_wave_specialisation(rocshmem_team_t team, T *dst,
+                                                         const T *src, int nelems) {
+  GDATeam *team_obj = reinterpret_cast<GDATeam *>(team);
+
+  int pe_start = team_obj->tinfo_wrt_world->pe_start;
+  int pe_size = team_obj->num_pes;
+  int stride = team_obj->tinfo_wrt_world->stride;
+  long *pSync = team_obj->alltoall_pSync;
+  int my_pe_in_team = team_obj->my_pe;
+  uint64_t alltoall_pSync_offset = (team_obj->alltoall_sequence_number % 2) * pe_size;
+
+  int tid = get_flat_block_id();
+  int step_size = min(get_flat_block_size(), WF_SIZE);
+
+  int wf_id = tid / WF_SIZE;
+  int wf_count = (int) ceil((double)get_flat_block_size() / (double)WF_SIZE);
+
+  // Give Wave 0 the role of inter-node communication
+  if (wf_id == 0) {
+    // Have each PE put their designated data to the other PEs
+    for (int j = tid; j < ipcImpl_.inter_node_pe_size; j+= step_size) {
+      int dest_pe = ipcImpl_.inter_node_pe_array[j];
+      uint64_t base_heap_offset = base_heap[dest_pe] - base_heap[my_pe];
+      qps[dest_pe].put_nbi_single(reinterpret_cast<char*>(&dst[my_pe_in_team * nelems]) + base_heap_offset,
+                                  &src[dest_pe * nelems], nelems * sizeof(T), false);
+      qps[dest_pe].atomic_nofetch_single(reinterpret_cast<char *>(&pSync[alltoall_pSync_offset + my_pe_in_team]) + base_heap_offset,
+                                         1);
+    }
+  } else { /* Give remaining waves the role of IPC */
+    for (int j = wf_id - 1; j < ipcImpl_.shm_size; j+= wf_count) {
+      int local_pe{-1};
+      int dest_pe = ipcImpl_.intra_node_pe_array[j];
+      uint64_t L_offset = reinterpret_cast<char *>(&dst[my_pe_in_team * nelems])
+                        - ipcImpl_.ipc_bases[ipcImpl_.shm_rank];
+
+      if (ipcImpl_.isIpcAvailable(my_pe, dest_pe, &local_pe)) {
+        ipcImpl_.ipcCopy_wave(ipcImpl_.ipc_bases[local_pe] + L_offset,
+                              (void*)(&src[dest_pe * nelems]),
+                              nelems * sizeof(T));
+      }
+
+
+      if ((tid % WF_SIZE) == 0) {
+        L_offset = reinterpret_cast<char *>(&pSync[alltoall_pSync_offset + my_pe_in_team])
+                 - ipcImpl_.ipc_bases[ipcImpl_.shm_rank];
+        ipcImpl_.ipcAMOAdd<uint64_t>(reinterpret_cast<uint64_t*>(ipcImpl_.ipc_bases[local_pe] + L_offset), 1);
+      }
+    }
+  }
+
+  // wait until everyone has obtained their designated data
+  if (wf_id == 0) {
+    for (int j = tid; j < ipcImpl_.inter_node_pe_size; j+= step_size) {
+      int dest_pe = ipcImpl_.inter_node_pe_array[j];
+
+      volatile long *vol_ivars = &pSync[alltoall_pSync_offset + dest_pe];
+      while (uncached_load(vol_ivars) != 1) { }
+
+      pe_quiet_single(dest_pe);
+
+      pSync[alltoall_pSync_offset + dest_pe] = ROCSHMEM_SYNC_VALUE;
+    }
+  } else if (wf_id == 1) {
+    for (int j = tid; j < ipcImpl_.shm_size; j+= step_size) {
+      int dest_pe = ipcImpl_.intra_node_pe_array[j];
+
+      volatile long *vol_ivars = &pSync[alltoall_pSync_offset + dest_pe];
+      while (uncached_load(vol_ivars) != 1) { }
+
+      pSync[alltoall_pSync_offset + dest_pe] = ROCSHMEM_SYNC_VALUE;
+    }
+  }
+
+  __syncthreads();
+
+  if (is_thread_zero_in_block()) {
+    team_obj->alltoall_sequence_number++;
+  }
+
+  __syncthreads();
 }
 
 template <typename T>

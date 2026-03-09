@@ -53,7 +53,9 @@ __host__ GDAContext::GDAContext(Backend *b, unsigned int ctx_id, int gda_provide
   ipcImpl_.ipc_bases = backend->ipcImpl.ipc_bases;
   ipcImpl_.shm_size = backend->ipcImpl.shm_size;
   ipcImpl_.shm_rank = backend->ipcImpl.shm_rank;
-  ipcImpl_.pes_with_ipc_avail = backend->ipcImpl.pes_with_ipc_avail;
+  ipcImpl_.intra_node_pe_array = backend->ipcImpl.intra_node_pe_array;
+  ipcImpl_.inter_node_pe_size = backend->ipcImpl.inter_node_pe_size;
+  ipcImpl_.inter_node_pe_array = backend->ipcImpl.inter_node_pe_array;
 
   ctx_id_ = ctx_id;
   gda_provider_ = gda_provider;
