@@ -2105,8 +2105,7 @@ bool KernelBlitManager::fillBuffer1D(device::Memory& memory, const void* pattern
   const uintptr_t fill_buf_addr = memory.virtualAddress() + origin[0];
   bool useUnaligned = ((fill_buf_addr % (sizeof(uint64_t) * 2)) != 0) &&
                       (patternSize == sizeof(uint8_t) || patternSize == sizeof(uint16_t) ||
-                       patternSize == sizeof(uint32_t)) &&
-                      (size[0] >= 512);
+                       patternSize == sizeof(uint32_t));
 
   if (useUnaligned) {
     constexpr uint32_t kFillType = FillBufferUnAligned;
@@ -2173,8 +2172,7 @@ bool KernelBlitManager::fillBuffer1D(device::Memory& memory, const void* pattern
     assert(tail_count < 4 && "tail_count should be less than 4");
 
     constexpr size_t localWorkSize = 256;
-    const size_t work_items =
-        std::max<size_t>(alignUp(body_tile_count, localWorkSize), /* minSize */ 32);
+    const size_t work_items = alignUp(body_tile_count, localWorkSize);
     size_t globalWorkSize = std::min(dev().settings().limit_blit_wg_ * localWorkSize, work_items);
     const size_t body_tile_passes = (body_tile_count + globalWorkSize - 1) / globalWorkSize;
 

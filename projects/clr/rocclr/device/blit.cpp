@@ -760,14 +760,6 @@ void HostBlitManager::FillBufferInfo::PackInfo(const device::Memory& memory, siz
             pattern_size, fill_size);
 
   // TODO: Remove old 3 kernel path entirely
-  constexpr bool kDisablePackingOptimization = true;
-  // Check if packing optimization is disabled
-  if (kDisablePackingOptimization) {
-    // Simple case: create a single FillBufferInfo without alignment optimization
-    FillBufferInfo fill_info(fill_size);
-    packed_info.push_back(fill_info);
-    return;
-  }
 
   // 2. Calculate the next closest dword aligned address for faster processing
   size_t dst_addr = memory.virtualAddress() + fill_origin;

@@ -64,24 +64,31 @@ const char* BlitLinearSourceCode = BLIT_KERNELS(
       __global ulong2* element_tiled =
           ((__global ulong2*)__amd_alignUp((ulong)buf, sizeof(ulong2)));
 
-      // Handle head, body and tail
+      // Handle head, body and tail - each store in a separate warp to reduce divergence
       __global int* body_element = (__global int*)__amd_alignUp((ulong)buf, sizeof(int));
-      if (id < head_count) {  // Copy head
-        head_tail_element[id] = pattern[id & (pattern_size - 1)];
-      } else if ((id >= head_count) && (id < head_count + body_count)) {
-        // Copy shifted body_pattern
-        body_element[id - head_count] = body_pattern;
-      } else if ((id >= head_count + body_count) &&
-                 (id < head_count + body_count + body_tail_count)) {
-        // Copy shifted body_pattern to the region just before the final tail bytes
-        __global int* body_tail_element = body_element + body_count + body_tile_count * 4;
-        body_tail_element[id - (head_count + body_count)] = body_pattern;
-      } else if ((id >= head_count + body_count + body_tail_count) &&
-                 (id < head_count + body_count + body_tail_count + tail_count)) {
-        const ulong tail_offset = head_count + body_count * sizeof(int) +
-                                  body_tile_count * sizeof(ulong2) + body_tail_count * sizeof(int);
-        const ulong tail_id = id - (head_count + body_count + body_tail_count);
-        head_tail_element[tail_offset + tail_id] = pattern[tail_id & (pattern_size - 1)];
+      const uint wave_64_id = l >> 6;  // warp size 64, block size 256 -> 4 warps
+      if (wave_64_id == 0 && g == 0) {
+        if (id < head_count) {
+          head_tail_element[id] = pattern[id & (pattern_size - 1)];
+        }
+      } else if (wave_64_id == 1 && g == 0) {
+        if (id < 64 + body_count) {
+          body_element[id - head_count] = body_pattern;
+        }
+      } else if (wave_64_id == 2 && g == 0) {
+        if (id < 128 + body_tail_count) {
+          __global int* body_tail_element = body_element + body_count + body_tile_count * 4;
+          body_tail_element[id - (head_count + body_count)] = body_pattern;
+        }
+      } else if (wave_64_id == 3 && g == 0) {
+        if (id < 192 + tail_count) {
+          const ulong tail_offset = head_count + body_count * sizeof(int) +
+                                    body_tile_count * sizeof(ulong2) +
+                                    body_tail_count * sizeof(int);
+          const ulong tail_id = id - (head_count + body_count + body_tail_count);
+          head_tail_element[tail_offset + tail_id] =
+              pattern[tail_id & (pattern_size - 1)];
+        }
       }
 
       // We pass in the number of passes from the CPU to get the best code-gen
