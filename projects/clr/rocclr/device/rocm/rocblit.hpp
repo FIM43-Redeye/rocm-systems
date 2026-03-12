@@ -278,8 +278,7 @@ class DmaBlitManager : public device::HostBlitManager {
 class KernelBlitManager : public DmaBlitManager {
  public:
   enum {
-    FillBufferAligned = 0,
-    FillBufferUnAligned,
+    FillBufferUnAligned = 0,
     FillBufferAligned2D,
     BlitCopyBuffer,
     BlitCopyBufferAligned,
@@ -585,8 +584,7 @@ class KernelBlitManager : public DmaBlitManager {
   mutable amd::Monitor lockXferOps_;  //!< Lock transfer operation
 };
 
-static const char* BlitName[KernelBlitManager::BlitTotal] = {"__amd_rocclr_fillBufferAligned",
-                                                             "__amd_rocclr_fillBufferUnAligned",
+static const char* BlitName[KernelBlitManager::BlitTotal] = {"__amd_rocclr_fillBufferUnAligned",
                                                              "__amd_rocclr_fillBufferAligned2D",
                                                              "__amd_rocclr_copyBuffer",
                                                              "__amd_rocclr_copyBufferAligned",
