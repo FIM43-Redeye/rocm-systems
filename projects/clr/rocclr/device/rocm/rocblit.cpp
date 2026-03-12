@@ -2103,9 +2103,10 @@ bool KernelBlitManager::fillBuffer1D(device::Memory& memory, const void* pattern
   // The buffer must be greater than 512 bytes to justify taking this path,
   // otherwise aligned 1 char pattern path will likely be better
   const uintptr_t fill_buf_addr = memory.virtualAddress() + origin[0];
-  bool useUnaligned = ((fill_buf_addr % (sizeof(uint64_t) * 2)) != 0) &&
+  /*bool useUnaligned = ((fill_buf_addr % (sizeof(uint64_t) * 2)) != 0) &&
                       (patternSize == sizeof(uint8_t) || patternSize == sizeof(uint16_t) ||
-                       patternSize == sizeof(uint32_t));
+                       patternSize == sizeof(uint32_t));*/
+  bool useUnaligned = true;
 
   if (useUnaligned) {
     constexpr uint32_t kFillType = FillBufferUnAligned;
@@ -2172,7 +2173,7 @@ bool KernelBlitManager::fillBuffer1D(device::Memory& memory, const void* pattern
     assert(tail_count < 4 && "tail_count should be less than 4");
 
     constexpr size_t localWorkSize = 256;
-    const size_t work_items = alignUp(body_tile_count, localWorkSize);
+    const size_t work_items = std::max(alignUp(body_tile_count, localWorkSize), localWorkSize);
     size_t globalWorkSize = std::min(dev().settings().limit_blit_wg_ * localWorkSize, work_items);
     const size_t body_tile_passes = (body_tile_count + globalWorkSize - 1) / globalWorkSize;
 
