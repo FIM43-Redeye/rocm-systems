@@ -48,6 +48,13 @@ struct selected_entry
 {
     ROCPROFSYS_DEFAULT_OBJECT(selected_entry)
 
+    // Constructor for aggregate-style initialization (required in C++20)
+    selected_entry(uintptr_t addr, uintptr_t sym_addr, binary::symbol sym)
+    : address(addr)
+    , symbol_address(sym_addr)
+    , symbol(std::move(sym))
+    {}
+
     uintptr_t      address        = 0x0;
     uintptr_t      symbol_address = 0x0;
     binary::symbol symbol         = {};

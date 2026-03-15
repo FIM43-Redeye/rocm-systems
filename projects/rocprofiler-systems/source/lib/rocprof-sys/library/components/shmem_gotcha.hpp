@@ -189,7 +189,13 @@ struct shmem_gotcha : tim::component::base<shmem_gotcha<SHMEMPolicy>, void>
 
     static constexpr size_t gotcha_capacity = 120;
 
-    ROCPROFSYS_DEFAULT_OBJECT(shmem_gotcha<SHMEMPolicy>)
+    // Cannot use ROCPROFSYS_DEFAULT_OBJECT macro with template types due to
+    // preprocessor limitations with angle brackets
+    shmem_gotcha()                                   = default;
+    shmem_gotcha(const shmem_gotcha&)                = default;
+    shmem_gotcha(shmem_gotcha&&) noexcept            = default;
+    shmem_gotcha& operator=(const shmem_gotcha&)     = default;
+    shmem_gotcha& operator=(shmem_gotcha&&) noexcept = default;
 
     static std::string label() { return "shmem_gotcha"; }
 
