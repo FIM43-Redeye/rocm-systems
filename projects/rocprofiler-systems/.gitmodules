@@ -1,7 +1,7 @@
 [submodule "external/timemory"]
 	path = external/timemory
 	url = https://github.com/ROCm/timemory.git
-	branch = rocprofiler-systems
+	branch = upgrade-cpp-standard-to-c++20
 [submodule "external/perfetto"]
 	path = external/perfetto
 	url = https://github.com/google/perfetto.git

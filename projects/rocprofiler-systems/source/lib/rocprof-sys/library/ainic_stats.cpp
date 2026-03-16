@@ -94,13 +94,13 @@ ai_nic_stats_collector::update_stats()
         }
         for(uint32_t idx = 0; idx < processor_count; ++idx)
         {
-            amdsmi_status_t                status;
-            amdsmi_nic_rdma_devices_info_t info;
-            status = amdsmi_get_nic_rdma_dev_info(processor_handles[idx], &info);
+            // Allocate on heap to avoid excessive stack usage
+            auto info = std::make_unique<amdsmi_nic_rdma_devices_info_t>();
+            status    = amdsmi_get_nic_rdma_dev_info(processor_handles[idx], info.get());
             if(status != AMDSMI_STATUS_SUCCESS) continue;
 
             // Update info and stats.
-            update_data_for_one_handle(processor_handles[idx], info);
+            update_data_for_one_handle(processor_handles[idx], *info);
         }
     }
 #endif  // AINIC_SUPPORTED
