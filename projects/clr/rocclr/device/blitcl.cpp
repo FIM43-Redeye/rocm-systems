@@ -44,16 +44,23 @@ const char* BlitLinearSourceCode = BLIT_KERNELS(
 
     extern void __ockl_dm_init_v1(ulong, ulong, uint, uint);
 
-    extern void __amd_rocclr_fillBufferUnAligned(__global void* __restrict buf,
-                                                     __constant uchar* __restrict pattern,
-                                                     int body_pattern, ulong2 body_tile_pattern,
-                                                     ulong body_tile_count, ulong body_tile_passes,
-                                                     ulong stride, ulong pattern_size,
-                                                     ulong tail_offset, __global uchar* __restrict body_ptr,
-                                                     __global uchar* __restrict body_tail_ptr,
-                                                     __global uchar* __restrict tail_ptr,
-                                                     __global ulong2* __restrict element_tiled,
-                                                     ushort4 counts, int isAligned);
+    extern void __amd_fillBufferUnAligned(
+        __global void* __restrict buf, __constant uchar* __restrict pattern, int body_pattern,
+        ulong2 body_tile_pattern, ulong body_tile_count, ulong body_tile_passes, ulong stride,
+        ulong pattern_size, ulong tail_offset, __global uchar* __restrict body_ptr,
+        __global uchar* __restrict body_tail_ptr, __global uchar* __restrict tail_ptr,
+        __global ulong2* __restrict element_tiled, ushort4 counts, int isAligned);
+
+    __kernel void __amd_rocclr_fillBufferUnAligned(
+        __global void* __restrict buf, __constant uchar* __restrict pattern, int body_pattern,
+        ulong2 body_tile_pattern, ulong body_tile_count, ulong body_tile_passes, ulong stride,
+        ulong pattern_size, ulong tail_offset, __global uchar* __restrict body_ptr,
+        __global uchar* __restrict body_tail_ptr, __global uchar* __restrict tail_ptr,
+        __global ulong2* __restrict element_tiled, ushort4 counts, int isAligned) {
+      __amd_fillBufferUnAligned(buf, pattern, body_pattern, body_tile_pattern, body_tile_count,
+                                body_tile_passes, stride, pattern_size, tail_offset, body_ptr,
+                                body_tail_ptr, tail_ptr, element_tiled, counts, isAligned);
+    }
 
     __kernel void __amd_rocclr_fillBufferAligned2D(
         __global uchar* bufUChar, __global ushort* bufUShort, __global uint* bufUInt,
