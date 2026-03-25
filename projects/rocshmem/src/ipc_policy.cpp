@@ -136,7 +136,7 @@ __host__ void IpcOnImpl::ipcHostInit(int my_pe, const HEAP_BASES_T &heap_bases,
 __host__ void IpcOnImpl::ipcHostInit(int my_pe, const HEAP_BASES_T &heap_bases,
                                      TcpBootstrap *bootstr) {
   shm_size = bootstr->getNranksPerNode();
-  auto shm_ranks = bootstr->getLocalRanks();
+  std::vector<int> shm_ranks = bootstr->getLocalRanks();
   shm_rank = std::find(shm_ranks.begin(), shm_ranks.end(), my_pe) - shm_ranks.begin();
 
   /*
@@ -201,8 +201,14 @@ __host__ void IpcOnImpl::ipcHostInit(int my_pe, const HEAP_BASES_T &heap_bases,
   }
   auto disable_ipc = envvar::disable_mixed_ipc || envvar::ro::disable_ipc || envvar::disable_ipc;
   if (!disable_ipc) {
-    CHECK_HIP(hipMalloc(reinterpret_cast<void**>(&pes_with_ipc_avail), shm_size * sizeof(int)));
-    std::copy(shm_ranks.begin(), shm_ranks.end(), pes_with_ipc_avail);
+    int world_size = bootstr->getNranks();
+    CHECK_HIP(hipMalloc(reinterpret_cast<void**>(&pes_with_ipc_avail), world_size * sizeof(int)));
+    CHECK_HIP(hipMemset(reinterpret_cast<void*>(pes_with_ipc_avail), -1, world_size * sizeof(int)));
+    CHECK_HIP(hipDeviceSynchronize());
+
+    for (int i=0; i<shm_size; i++) {
+      pes_with_ipc_avail[shm_ranks[i]] = i;
+    }
   }
 }
 

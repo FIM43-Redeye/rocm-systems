@@ -64,11 +64,11 @@ class IpcOnImpl {
   __host__ __device__ bool isIpcAvailable(int my_pe, int target_pe, int *local_target_pe) {
     if (nullptr == pes_with_ipc_avail) { return false; }
 
-    for (int i=0; i<shm_size; i++) {
-      if (pes_with_ipc_avail[i] == target_pe) {
-        *local_target_pe = i;
-        return true;
-      }
+    int local_pe = pes_with_ipc_avail[target_pe];
+
+    if (local_pe != -1) {
+      *local_target_pe = local_pe;
+      return true;
     }
 
     return false;
