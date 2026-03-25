@@ -89,7 +89,68 @@ Output
 Run with --help for the full list of options.
 """
 
-from __future__ import annotations
+# ---------------------------------------------------------------------------
+# Bootstrap: ensure Python 3.7+ (required for dataclasses & type annotations).
+# On SLES the default python3 may be 3.6; this block auto-installs a newer
+# interpreter via zypper and re-execs.  The code below intentionally avoids
+# any 3.7+ syntax so it can run on Python 3.6.
+# ---------------------------------------------------------------------------
+import sys as _sys
+import os as _os
+
+if _sys.version_info < (3, 7):
+    def _bootstrap_python():
+        import shutil
+        import subprocess
+        if not shutil.which("zypper"):
+            _sys.exit(
+                "ERROR: Python 3.7+ is required (have %d.%d). "
+                "Install a newer interpreter or use a newer base image."
+                % (_sys.version_info[0], _sys.version_info[1])
+            )
+        print(
+            "Python %d.%d is too old — upgrading via zypper..."
+            % (_sys.version_info[0], _sys.version_info[1])
+        )
+        for pkgs in [
+            ["python311", "python311-pip"],
+            ["python310", "python310-pip"],
+            ["python39", "python39-pip"],
+            ["python38", "python38-pip"],
+        ]:
+            try:
+                subprocess.check_call(
+                    ["zypper", "--non-interactive", "install"] + pkgs,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                break
+            except subprocess.CalledProcessError:
+                continue
+        new_py = None
+        for name in ["python3.11", "python3.10", "python3.9", "python3.8"]:
+            p = shutil.which(name)
+            if p:
+                new_py = p
+                break
+        if new_py is None:
+            _sys.exit("ERROR: could not find a Python 3.7+ interpreter after install")
+        try:
+            subprocess.check_call(
+                ["alternatives", "--set", "python3", new_py],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+            link = "/usr/bin/python3"
+            if _os.path.exists(link) or _os.path.islink(link):
+                _os.unlink(link)
+            _os.symlink(new_py, link)
+        print("Re-executing under %s ..." % new_py)
+        _os.execvp(new_py, [new_py] + _sys.argv)
+    _bootstrap_python()
+del _sys, _os
+# ---------------------------------------------------------------------------
 
 import argparse
 import datetime as _dt
@@ -115,7 +176,7 @@ class CommandError(RuntimeError):
 
 
 def _timestamp() -> str:
-    return _dt.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    return _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
 
 
 def run_command(
@@ -188,6 +249,14 @@ def tail_log(log_path: Path, max_lines: int = 40) -> str:
         with log_path.open("r", encoding="utf-8", errors="replace") as fh:
             tail = deque(fh, maxlen=max_lines)
         return "".join(tail)
+    except OSError as exc:
+        return f"(could not read log {log_path}: {exc})"
+
+
+def read_log(log_path: Path) -> str:
+    """Return the full contents of a log file."""
+    try:
+        return log_path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         return f"(could not read log {log_path}: {exc})"
 
@@ -287,6 +356,31 @@ def upgrade_setuptools(log_dir: Path, retries: int) -> None:
         retries=retries,
         log_dir=log_dir,
     )
+
+
+def repair_cmake(log_dir: Path) -> None:
+    """Re-install the cmake pip package if the wrapper script is broken.
+
+    On SLES the system cmake is a pip-installed Python wrapper.  Upgrading
+    pip/setuptools can break it (``ModuleNotFoundError: No module named
+    'cmake'``).  This function detects the breakage and force-reinstalls
+    the cmake package so the wrapper works again.
+    """
+    try:
+        subprocess.run(
+            ["cmake", "--version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("cmake is broken or missing — reinstalling via pip...")
+        run_command(
+            ["python3", "-m", "pip", "install", "--force-reinstall", "cmake"],
+            name="pip-repair-cmake",
+            retries=1,
+            log_dir=log_dir,
+        )
 
 
 def update_debian10_sources(log_dir: Path, retries: int) -> None:
@@ -425,11 +519,18 @@ def install_package(cfg: "RunnerConfig", package_path: Path) -> None:
         )
     elif cfg.package_manager == "dnf":
         run_command(
-            ["dnf", "install", "python3-setuptools", "python3-wheel", "-y"],
+            ["dnf", "install", "python3-setuptools", "python3-wheel", "-y",
+             "--setopt=skip_if_unavailable=True"],
             name="dnf-prep",
             retries=cfg.retries,
             log_dir=cfg.log_dir,
         )
+        # Install main package; if a tests package exists, install it too.
+        tests_pkg = package_path.parent / package_path.name.replace(
+            "amd-smi-lib-", "amd-smi-lib-tests-", 1)
+        rpm_list = [str(package_path)]
+        if tests_pkg.exists() and tests_pkg != package_path:
+            rpm_list.append(str(tests_pkg))
         run_command(
             [
                 "dnf",
@@ -437,15 +538,21 @@ def install_package(cfg: "RunnerConfig", package_path: Path) -> None:
                 "-y",
                 "--skip-broken",
                 "--disablerepo=*",
-                str(package_path),
+                *rpm_list,
             ],
             name="dnf-install",
             retries=cfg.retries,
             log_dir=cfg.log_dir,
         )
     elif cfg.package_manager == "zypper":
+        # Install main package; if a tests package exists, install it too.
+        tests_pkg = package_path.parent / package_path.name.replace(
+            "amd-smi-lib-", "amd-smi-lib-tests-", 1)
+        rpm_list = [str(package_path)]
+        if tests_pkg.exists() and tests_pkg != package_path:
+            rpm_list.append(str(tests_pkg))
         run_command(
-            ["zypper", "--no-refresh", "--no-gpg-checks", "install", "-y", str(package_path)],
+            ["zypper", "--no-refresh", "--no-gpg-checks", "install", "-y", *rpm_list],
             name="zypper-install",
             retries=cfg.retries,
             log_dir=cfg.log_dir,
@@ -466,7 +573,7 @@ def install_package(cfg: "RunnerConfig", package_path: Path) -> None:
     # Note: pip list will NOT show amdsmi because the .pth approach does not
     # register the package with pip metadata — that is by design.
     verify_commands = [
-        ["amd-smi", "version"],
+        [str(rocm_binary), "version"],
         [
             "python3",
             "-c",
@@ -669,6 +776,9 @@ def main() -> None:
     if not cfg.skip_setuptools_upgrade:
         upgrade_setuptools(cfg.log_dir, cfg.retries)
 
+    # 3b. Repair cmake if the pip wrapper broke during setuptools upgrade (SLES)
+    repair_cmake(cfg.log_dir)
+
     # 4. Clean stale ROCm Python artifacts from Docker image
     clean_stale_artifacts(cfg.log_dir)
 
@@ -678,7 +788,8 @@ def main() -> None:
             build_amdsmi(cfg)
         except CommandError as exc:
             _write_result(cfg.test_results_dir, "build_result.txt",
-                          f"BUILD FAILED: {exc.name} exited {exc.code}\nLog: {exc.log_path}")
+                          f"BUILD FAILED: {exc.name} exited {exc.code}\n\n"
+                          f"Log ({exc.log_path}):\n{read_log(exc.log_path)}")
             report_and_raise("BUILD", exc)
 
     artifact = locate_package(cfg.build_dir, cfg.package_format)
@@ -692,7 +803,8 @@ def main() -> None:
             install_package(cfg, artifact)
         except CommandError as exc:
             _write_result(cfg.test_results_dir, "install_result.txt",
-                          f"INSTALL FAILED: {exc.name} exited {exc.code}\nLog: {exc.log_path}")
+                          f"INSTALL FAILED: {exc.name} exited {exc.code}\n\n"
+                          f"Log ({exc.log_path}):\n{read_log(exc.log_path)}")
             report_and_raise("INSTALL", exc)
         _write_result(cfg.test_results_dir, "install_result.txt",
                       f"INSTALL PASSED\nPackage: {artifact}")
@@ -703,7 +815,8 @@ def main() -> None:
             verify_wheel_site_packages(cfg)
         except CommandError as exc:
             _write_result(cfg.test_results_dir, "verify_wheel_result.txt",
-                          f"VERIFY WHEEL FAILED: {exc.name} exited {exc.code}\nLog: {exc.log_path}")
+                          f"VERIFY WHEEL FAILED: {exc.name} exited {exc.code}\n\n"
+                          f"Log ({exc.log_path}):\n{read_log(exc.log_path)}")
             report_and_raise("VERIFY WHEEL", exc)
         _write_result(cfg.test_results_dir, "verify_wheel_result.txt",
                       "VERIFY WHEEL PASSED")

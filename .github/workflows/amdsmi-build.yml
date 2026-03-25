@@ -293,6 +293,11 @@ jobs:
           fi
           cd "$EXAMPLE_DIR"
           rm -rf build
+          # Repair cmake if pip wrapper is broken (e.g. after setuptools upgrade on SLES)
+          if ! cmake --version >/dev/null 2>&1; then
+            python3 -m pip install --force-reinstall cmake 2>/dev/null || true
+            hash -r
+          fi
           cmake -B build -DENABLE_ESMI_LIB=OFF -DCMAKE_PREFIX_PATH=/opt/rocm
           make -C build -j"$(nproc)" amd_smi_drm_ex amd_smi_nodrm_ex
           for BIN in amd_smi_drm_ex amd_smi_nodrm_ex; do
@@ -437,6 +442,14 @@ jobs:
           if [ -n "$CMD_FAILS" ]; then
             FAILURES+=("Command tests:$CMD_FAILS")
             DETAILS+=$'\n'"#### Command Tests"$'\n\n'"Failed commands:\`$CMD_FAILS\`"$'\n'
+            for log in "$RESULTS_DIR"/amd-smi_*.log; do
+              [ -f "$log" ] || continue
+              CMD=$(basename "$log" .log | sed 's/amd-smi_//')
+              if grep -qE "Traceback|AmdSmiException|Error code:" "$log" 2>/dev/null; then
+                LOG_CONTENT=$(cat "$log")
+                DETAILS+=$'\n'"##### amd-smi ${CMD}"$'\n\n'"\`\`\`"$'\n'"${LOG_CONTENT}"$'\n'"\`\`\`"$'\n'
+              fi
+            done
             echo "Command test failures:$CMD_FAILS"
           fi
 
@@ -445,10 +458,10 @@ jobs:
             GTEST_FAILS=$(grep -c "\[  FAILED  \]" "$RESULTS_DIR/amdsmi_tests.log" 2>/dev/null || true)
             if [ "${GTEST_FAILS:-0}" -gt 0 ] 2>/dev/null; then
               FAILURES+=("AMDSMI Tests ($GTEST_FAILS)")
-              FAIL_LINES=$(grep "\[  FAILED  \]" "$RESULTS_DIR/amdsmi_tests.log" | head -30)
-              DETAILS+=$'\n'"#### AMDSMI Tests — $GTEST_FAILS failure(s)"$'\n\n'"\`\`\`"$'\n'"${FAIL_LINES}"$'\n'"\`\`\`"$'\n'
+              FULL_LOG=$(cat "$RESULTS_DIR/amdsmi_tests.log")
+              DETAILS+=$'\n'"#### AMDSMI Tests — $GTEST_FAILS failure(s)"$'\n\n'"\`\`\`"$'\n'"${FULL_LOG}"$'\n'"\`\`\`"$'\n'
               echo "AMDSMI Tests: $GTEST_FAILS failure(s)"
-              echo "$FAIL_LINES" | sed 's/^/  /'
+              grep "\[  FAILED  \]" "$RESULTS_DIR/amdsmi_tests.log" | head -30 | sed 's/^/  /'
             fi
           fi
 
@@ -460,10 +473,10 @@ jobs:
             if [ "${PY_FAILS:-0}" -gt 0 ] 2>/dev/null; then
               TEST_NAME=$(basename "$test_file" _output.txt | tr '_' ' ')
               FAILURES+=("${TEST_NAME} ($PY_FAILS)")
-              FAIL_LINES=$(grep -E "^FAIL:|^ERROR:" "$FULL" | head -30)
-              DETAILS+=$'\n'"#### ${TEST_NAME} — $PY_FAILS failure(s)"$'\n\n'"\`\`\`"$'\n'"${FAIL_LINES}"$'\n'"\`\`\`"$'\n'
+              FULL_LOG=$(cat "$FULL")
+              DETAILS+=$'\n'"#### ${TEST_NAME} — $PY_FAILS failure(s)"$'\n\n'"\`\`\`"$'\n'"${FULL_LOG}"$'\n'"\`\`\`"$'\n'
               echo "${TEST_NAME}: $PY_FAILS failure(s)"
-              echo "$FAIL_LINES" | sed 's/^/  /'
+              grep -E "^FAIL:|^ERROR:" "$FULL" | head -30 | sed 's/^/  /'
             fi
           done
 
@@ -474,8 +487,8 @@ jobs:
             if grep -qiE "segfault|SIGSEGV|abort" "$FULL" 2>/dev/null; then
               EX_NAME="${ex_log%.log}"
               FAILURES+=("Example $EX_NAME")
-              TAIL=$(tail -10 "$FULL")
-              DETAILS+=$'\n'"#### Example ${EX_NAME}"$'\n\n'"\`\`\`"$'\n'"${TAIL}"$'\n'"\`\`\`"$'\n'
+              FULL_LOG=$(cat "$FULL")
+              DETAILS+=$'\n'"#### Example ${EX_NAME}"$'\n\n'"\`\`\`"$'\n'"${FULL_LOG}"$'\n'"\`\`\`"$'\n'
               echo "Example $EX_NAME: errors detected"
             fi
           done
@@ -550,14 +563,17 @@ jobs:
             exit 0
           fi
           echo "System python3 is too old: $(python3 --version 2>&1 || echo not found)"
-          echo "Installing Python 3.8..."
+          echo "Installing a newer Python..."
           if command -v dnf &>/dev/null; then
             dnf install -y python38 python38-pip python38-setuptools 2>/dev/null || \
               dnf install -y python3.8 python3.8-pip 2>/dev/null || true
           elif command -v zypper &>/dev/null; then
-            zypper --non-interactive install python38 python38-pip 2>/dev/null || true
+            zypper --non-interactive install python311 python311-pip 2>/dev/null || \
+              zypper --non-interactive install python310 python310-pip 2>/dev/null || \
+              zypper --non-interactive install python39 python39-pip 2>/dev/null || \
+              zypper --non-interactive install python38 python38-pip 2>/dev/null || true
           fi
-          for PY in python3.8 python3.9 python3.10; do
+          for PY in python3.11 python3.10 python3.9 python3.8; do
             if command -v "$PY" &>/dev/null; then
               alternatives --set python3 "$(command -v $PY)" 2>/dev/null || \
                 ln -sf "$(command -v $PY)" /usr/bin/python3
@@ -781,6 +797,11 @@ jobs:
           fi
           cd "$EXAMPLE_DIR"
           rm -rf build
+          # Repair cmake if pip wrapper is broken (e.g. after setuptools upgrade on SLES)
+          if ! cmake --version >/dev/null 2>&1; then
+            python3 -m pip install --force-reinstall cmake 2>/dev/null || true
+            hash -r
+          fi
           cmake -B build -DENABLE_ESMI_LIB=OFF -DCMAKE_PREFIX_PATH=/opt/rocm
           make -C build -j"$(nproc)" amd_smi_drm_ex amd_smi_nodrm_ex
           for BIN in amd_smi_drm_ex amd_smi_nodrm_ex; do
@@ -925,6 +946,14 @@ jobs:
           if [ -n "$CMD_FAILS" ]; then
             FAILURES+=("Command tests:$CMD_FAILS")
             DETAILS+=$'\n'"#### Command Tests"$'\n\n'"Failed commands:\`$CMD_FAILS\`"$'\n'
+            for log in "$RESULTS_DIR"/amd-smi_*.log; do
+              [ -f "$log" ] || continue
+              CMD=$(basename "$log" .log | sed 's/amd-smi_//')
+              if grep -qE "Traceback|AmdSmiException|Error code:" "$log" 2>/dev/null; then
+                LOG_CONTENT=$(cat "$log")
+                DETAILS+=$'\n'"##### amd-smi ${CMD}"$'\n\n'"\`\`\`"$'\n'"${LOG_CONTENT}"$'\n'"\`\`\`"$'\n'
+              fi
+            done
             echo "Command test failures:$CMD_FAILS"
           fi
 
@@ -933,10 +962,10 @@ jobs:
             GTEST_FAILS=$(grep -c "\[  FAILED  \]" "$RESULTS_DIR/amdsmi_tests.log" 2>/dev/null || true)
             if [ "${GTEST_FAILS:-0}" -gt 0 ] 2>/dev/null; then
               FAILURES+=("AMDSMI Tests ($GTEST_FAILS)")
-              FAIL_LINES=$(grep "\[  FAILED  \]" "$RESULTS_DIR/amdsmi_tests.log" | head -30)
-              DETAILS+=$'\n'"#### AMDSMI Tests — $GTEST_FAILS failure(s)"$'\n\n'"\`\`\`"$'\n'"${FAIL_LINES}"$'\n'"\`\`\`"$'\n'
+              FULL_LOG=$(cat "$RESULTS_DIR/amdsmi_tests.log")
+              DETAILS+=$'\n'"#### AMDSMI Tests — $GTEST_FAILS failure(s)"$'\n\n'"\`\`\`"$'\n'"${FULL_LOG}"$'\n'"\`\`\`"$'\n'
               echo "AMDSMI Tests: $GTEST_FAILS failure(s)"
-              echo "$FAIL_LINES" | sed 's/^/  /'
+              grep "\[  FAILED  \]" "$RESULTS_DIR/amdsmi_tests.log" | head -30 | sed 's/^/  /'
             fi
           fi
 
@@ -948,10 +977,10 @@ jobs:
             if [ "${PY_FAILS:-0}" -gt 0 ] 2>/dev/null; then
               TEST_NAME=$(basename "$test_file" _output.txt | tr '_' ' ')
               FAILURES+=("${TEST_NAME} ($PY_FAILS)")
-              FAIL_LINES=$(grep -E "^FAIL:|^ERROR:" "$FULL" | head -30)
-              DETAILS+=$'\n'"#### ${TEST_NAME} — $PY_FAILS failure(s)"$'\n\n'"\`\`\`"$'\n'"${FAIL_LINES}"$'\n'"\`\`\`"$'\n'
+              FULL_LOG=$(cat "$FULL")
+              DETAILS+=$'\n'"#### ${TEST_NAME} — $PY_FAILS failure(s)"$'\n\n'"\`\`\`"$'\n'"${FULL_LOG}"$'\n'"\`\`\`"$'\n'
               echo "${TEST_NAME}: $PY_FAILS failure(s)"
-              echo "$FAIL_LINES" | sed 's/^/  /'
+              grep -E "^FAIL:|^ERROR:" "$FULL" | head -30 | sed 's/^/  /'
             fi
           done
 
@@ -962,8 +991,8 @@ jobs:
             if grep -qiE "segfault|SIGSEGV|abort" "$FULL" 2>/dev/null; then
               EX_NAME="${ex_log%.log}"
               FAILURES+=("Example $EX_NAME")
-              TAIL=$(tail -10 "$FULL")
-              DETAILS+=$'\n'"#### Example ${EX_NAME}"$'\n\n'"\`\`\`"$'\n'"${TAIL}"$'\n'"\`\`\`"$'\n'
+              FULL_LOG=$(cat "$FULL")
+              DETAILS+=$'\n'"#### Example ${EX_NAME}"$'\n\n'"\`\`\`"$'\n'"${FULL_LOG}"$'\n'"\`\`\`"$'\n'
               echo "Example $EX_NAME: errors detected"
             fi
           done
