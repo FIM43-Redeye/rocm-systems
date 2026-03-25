@@ -334,6 +334,13 @@ TEST(rocrtstFunc, Time_Stamp) {
   RunCustomTestEpilog(&ts);
 }
 
+TEST(rocrtstFunc, BarrierPkt_TimeStamp) {
+    TimeStamp ts;
+    RunCustomTestProlog(&ts);
+    ts.BarrierPacketTimestampValidationTest();
+    RunCustomTestEpilog(&ts);
+}
+
 TEST(rocrtstFunc, GpuCoreDump_DefaultPattern) {
   RUN_IF_NOT_EMU_MODE(
     GpuCoreDumpTest gcd;
