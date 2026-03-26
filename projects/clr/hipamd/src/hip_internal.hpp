@@ -196,13 +196,38 @@ const char* ihipGetErrorName(hipError_t hip_error);
     HIP_RETURN(hipErrorStreamCaptureUnsupported);                                                  \
   }
 
-// Helper: invalidate all capturing streams and return an error code.
-#define INVALIDATE_ALL_CAPTURING_AND_RETURN(err)                                                   \
-  if (!g_allCapturingStreams.empty()) {                                                            \
-    for (auto stream : g_allCapturingStreams) {                                                    \
+// Helper: invalidate all capturing streams visible to the calling thread and return an error.
+#define INVALIDATE_THREAD_CAPTURING_AND_RETURN(err)                                                \
+  {                                                                                                \
+    bool _should_return = false;                                                                   \
+    for (auto stream : hip::tls.capture_streams_) {                                               \
       stream->SetCaptureStatus(hipStreamCaptureStatusInvalidated);                                 \
+      _should_return = true;                                                                       \
     }                                                                                              \
-    return err;                                                                                    \
+    for (auto stream : hip::tls.relaxed_capture_streams_) {                                       \
+      stream->SetCaptureStatus(hipStreamCaptureStatusInvalidated);                                 \
+      _should_return = true;                                                                       \
+    }                                                                                              \
+    if (hip::tls.stream_capture_mode_ == hipStreamCaptureModeGlobal) {                             \
+      amd::ScopedLock lock(g_captureStreamsLock);                                                  \
+      for (auto stream : g_captureStreams) {                                                       \
+        stream->SetCaptureStatus(hipStreamCaptureStatusInvalidated);                               \
+        _should_return = true;                                                                     \
+      }                                                                                            \
+    }                                                                                              \
+    if (_should_return) return err;                                                                \
+  }
+
+// Helper: invalidate all capturing streams across all threads and return an error.
+#define INVALIDATE_ALL_CAPTURING_AND_RETURN(err)                                                   \
+  {                                                                                                \
+    amd::ScopedLock lock(g_streamSetLock);                                                        \
+    if (!g_allCapturingStreams.empty()) {                                                          \
+      for (auto stream : g_allCapturingStreams) {                                                  \
+        stream->SetCaptureStatus(hipStreamCaptureStatusInvalidated);                               \
+      }                                                                                            \
+      return err;                                                                                  \
+    }                                                                                              \
   }
 
 // Device sync is not supported during capture.
@@ -212,7 +237,7 @@ const char* ihipGetErrorName(hipError_t hip_error);
 // Sync APIs (hipMemset, hipMemcpy, etc.) cannot be called when stream capture is active
 // for any capture mode (Global, ThreadLocal, or Relaxed).
 #define CHECK_STREAM_CAPTURING()                                                                   \
-  INVALIDATE_ALL_CAPTURING_AND_RETURN(hipErrorStreamCaptureImplicit)
+  INVALIDATE_THREAD_CAPTURING_AND_RETURN(hipErrorStreamCaptureImplicit)
 
 #define STREAM_CAPTURE(name, stream, ...)                                                          \
   hip::getStreamPerThread(stream);                                                                 \
@@ -558,7 +583,8 @@ namespace hip {
     std::stack<Device*> ctxt_stack_;            //!< CUDA-style context stack
     hipError_t last_error_ = hipSuccess;       //!< Sticky error (persists until queried)
     hipError_t last_command_error_ = hipSuccess;//!< Last per-command error
-    std::vector<hip::Stream*> capture_streams_;//!< Streams currently capturing on this thread
+    std::vector<hip::Stream*> capture_streams_;        //!< Global/ThreadLocal capturing streams on this thread
+    std::vector<hip::Stream*> relaxed_capture_streams_;//!< Relaxed-mode capturing streams on this thread
     hipStreamCaptureMode stream_capture_mode_ = hipStreamCaptureModeGlobal; //!< Active capture mode
     std::stack<ihipExec_t> exec_stack_;        //!< Pending kernel launch configurations
     StreamPerThread stream_per_thread_obj_;    //!< Per-thread default streams (one per device)

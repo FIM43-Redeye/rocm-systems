@@ -1123,7 +1123,9 @@ hipError_t hipStreamBeginCapture_common(hipStream_t stream, hipStreamCaptureMode
   s->SetCaptureID();
   s->SetCaptureMode(mode);
   s->SetOriginStream();
-  if (mode != hipStreamCaptureModeRelaxed) {
+  if (mode == hipStreamCaptureModeRelaxed) {
+    hip::tls.relaxed_capture_streams_.push_back(s);
+  } else {
     hip::tls.capture_streams_.push_back(s);
   }
   if (mode == hipStreamCaptureModeGlobal) {
@@ -1201,7 +1203,13 @@ hipError_t hipStreamEndCapture_common(hipStream_t stream, hip::Graph** pGraph) {
   // If mode is not hipStreamCaptureModeRelaxed, hipStreamEndCapture must be called on the stream
   // from the same thread
   const auto& it = std::find(hip::tls.capture_streams_.begin(), hip::tls.capture_streams_.end(), s);
-  if (s->GetCaptureMode() != hipStreamCaptureModeRelaxed) {
+  if (s->GetCaptureMode() == hipStreamCaptureModeRelaxed) {
+    auto rit = std::find(hip::tls.relaxed_capture_streams_.begin(),
+                         hip::tls.relaxed_capture_streams_.end(), s);
+    if (rit != hip::tls.relaxed_capture_streams_.end()) {
+      hip::tls.relaxed_capture_streams_.erase(rit);
+    }
+  } else {
     if (it == hip::tls.capture_streams_.end()) {
       return hipErrorStreamCaptureWrongThread;
     }
