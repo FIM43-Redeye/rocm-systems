@@ -922,10 +922,9 @@ data::post_process(uint32_t _dev_id)
     LOG_DEBUG("Post-processing {} amd-smi samples from device {}", _amd_smi.size(),
               _dev_id);
 
-    if(get_is_continuous_integration() && !_thread_info)
+    if(!_thread_info)
     {
         throw std::runtime_error("Missing thread info for thread 0");
-        return;
     }
 
     if(!_thread_info) return;

@@ -228,7 +228,7 @@ thread_info::get(native_handle_t&& _tid)
         }
     }
 
-    if(get_is_continuous_integration() && unknown_thread)
+    if(unknown_thread)
     {
         throw std::runtime_error("Unknown thread has been assigned a value");
     }
@@ -247,7 +247,7 @@ thread_info::get(std::thread::id _tid)
         }
     }
 
-    if(get_is_continuous_integration() && unknown_thread)
+    if(unknown_thread)
     {
         throw std::runtime_error("Unknown thread has been assigned a value");
     }
@@ -295,7 +295,7 @@ thread_info::get(int64_t _tid, ThreadIdType _type)
                                  "ThreadIdType) with ThreadIdType::StlThreadID");
     }
 
-    if(get_is_continuous_integration() && unknown_thread)
+    if(unknown_thread)
     {
         throw std::runtime_error("Unknown thread has been assigned a value");
     }

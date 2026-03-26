@@ -213,11 +213,7 @@ nic_data::post_process(size_t nic_index)
     const auto& _thread_info = thread_info::get(0, InternalTID);
     if(!_thread_info)
     {
-        if(get_is_continuous_integration())
-        {
-            throw std::runtime_error("Missing thread info for thread 0");
-        }
-        LOG_ERROR("Missing thread info for thread 0");
+        throw std::runtime_error("Missing thread info for thread 0");
         return;
     }
 

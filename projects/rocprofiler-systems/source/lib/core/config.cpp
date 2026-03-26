@@ -86,7 +86,6 @@ namespace
 {
 int  verbose_value  = tim::get_env<int>("ROCPROFSYS_VERBOSE", 0, false);
 bool debug_value    = tim::get_env<bool>("ROCPROFSYS_DEBUG", false, false);
-bool is_ci_value    = tim::get_env<bool>("ROCPROFSYS_CI", false, false);
 auto configure_once = std::once_flag{};
 
 TIMEMORY_NOINLINE bool&
@@ -216,7 +215,7 @@ configure_settings(bool _init)
 
     if(settings_are_configured()) return;
 
-    if(is_ci_value && get_state() < State::Init)
+    if(get_state() < State::Init)
     {
         timemory_print_demangled_backtrace<64>();
 
@@ -1078,7 +1077,6 @@ configure_settings(bool _init)
 
     if(auto opt = get_setting_value<int>("ROCPROFSYS_VERBOSE"); opt) verbose_value = *opt;
     if(auto opt = get_setting_value<bool>("ROCPROFSYS_DEBUG"); opt) debug_value = *opt;
-    if(auto opt = get_setting_value<bool>("ROCPROFSYS_CI"); opt) is_ci_value = *opt;
 
     if(get_env("ROCPROFSYS_MONOCHROME", _config->get<bool>("ROCPROFSYS_MONOCHROME")))
         tim::log::monochrome() = true;
@@ -1146,7 +1144,6 @@ configure_settings(bool _init)
 
     if(auto opt = get_setting_value<int>("ROCPROFSYS_VERBOSE"); opt) verbose_value = *opt;
     if(auto opt = get_setting_value<bool>("ROCPROFSYS_DEBUG"); opt) debug_value = *opt;
-    if(auto opt = get_setting_value<bool>("ROCPROFSYS_CI"); opt) is_ci_value = *opt;
 
     _settings_are_configured() = true;
 }
@@ -1497,7 +1494,7 @@ handle_deprecated_setting(const std::string& _old, const std::string& _new, int 
 
     if(_old_setting == _config->end()) return;
 
-    if(get_is_continuous_integration() && _new_setting == _config->end())
+    if(_new_setting == _config->end())
     {
         throw std::runtime_error(
             fmt::format("New configuration setting not found: '{}'", _new));
@@ -1821,12 +1818,6 @@ get_debug_env()
 }
 
 bool
-get_is_continuous_integration()
-{
-    return is_ci_value;
-}
-
-bool
 get_debug_init()
 {
     return tim::get_env<bool>("ROCPROFSYS_DEBUG_INIT", get_debug_env());
@@ -2136,8 +2127,7 @@ get_category_config()
             std::abort();
         }
 
-        if(get_is_continuous_integration() &&
-           _enabled.size() + _disabled.size() != _avail.size())
+        if(_enabled.size() + _disabled.size() != _avail.size())
         {
             throw std::runtime_error(
                 fmt::format("Error! Internal error for categories: {} (enabled) + {} "

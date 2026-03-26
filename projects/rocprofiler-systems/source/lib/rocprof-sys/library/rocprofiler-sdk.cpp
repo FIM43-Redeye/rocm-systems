@@ -294,7 +294,6 @@ create_agent_profile(rocprofiler_agent_id_t          agent_id,
         }
         auto missing_counters_str = fmt::format("{}", fmt::join(missing_counters, ", "));
 
-        // In production, warn and continue with available counters
         LOG_WARNING("Unable to find all counters for agent {} (gpu-{}, {}). "
                     "Requested: {}. Found: {}. Missing: {}. Continuing with "
                     "available counters.",
@@ -302,16 +301,13 @@ create_agent_profile(rocprofiler_agent_id_t          agent_id,
                     tool_agent_v->agent->name, requested_counters, found_counters,
                     missing_counters_str);
 
-        if(get_is_continuous_integration())
-        {
-            LOG_CRITICAL("Unable to find all counters for agent {} (gpu-{}, {}) in "
-                         "{}. Found: {}",
-                         tool_agent_v->agent->node_id, tool_agent_v->device_id,
-                         tool_agent_v->agent->name, requested_counters, found_counters);
+        LOG_CRITICAL("Unable to find all counters for agent {} (gpu-{}, {}) in "
+                     "{}. Found: {}",
+                     tool_agent_v->agent->node_id, tool_agent_v->device_id,
+                     tool_agent_v->agent->name, requested_counters, found_counters);
 
-            ::rocprofsys::set_state(::rocprofsys ::State ::Finalized);
-            ::std ::abort();
-        }
+        ::rocprofsys::set_state(::rocprofsys ::State ::Finalized);
+        ::std ::abort();
     }
 
     if(!counters_v.empty())
@@ -1553,7 +1549,6 @@ tool_tracing_callback(rocprofiler_callback_tracing_record_t record,
             case ROCPROFILER_CALLBACK_TRACING_HIP_STREAM:
 #endif
             {
-                if(get_is_continuous_integration())
                 {
                     LOG_CRITICAL("Unhandled callback record kind: {}",
                                  static_cast<int>(record.kind));
@@ -1564,7 +1559,6 @@ tool_tracing_callback(rocprofiler_callback_tracing_record_t record,
             }
             default:
             {
-                if(get_is_continuous_integration())
                 {
                     LOG_CRITICAL("Unhandled callback record: {}", info.str());
                     ::rocprofsys::set_state(::rocprofsys::State::Finalized);
@@ -1651,7 +1645,6 @@ tool_tracing_callback(rocprofiler_callback_tracing_record_t record,
             case ROCPROFILER_CALLBACK_TRACING_HIP_STREAM:
 #endif
             {
-                if(get_is_continuous_integration())
                 {
                     LOG_CRITICAL("Unhandled callback record kind: {}",
                                  static_cast<int>(record.kind));
@@ -1662,7 +1655,6 @@ tool_tracing_callback(rocprofiler_callback_tracing_record_t record,
             }
             default:
             {
-                if(get_is_continuous_integration())
                 {
                     LOG_CRITICAL("Unhandled callback record: {}", info.str());
                     ::rocprofsys::set_state(::rocprofsys::State::Finalized);
@@ -1773,14 +1765,10 @@ tool_tracing_callback(rocprofiler_callback_tracing_record_t record,
     }
     else
     {
-        if(get_is_continuous_integration())
-        {
-            LOG_CRITICAL("unhandled callback record phase: {}",
-                         static_cast<int>(record.phase));
-            ::rocprofsys::set_state(::rocprofsys ::State ::Finalized);
-            ::std ::abort();
-        }
-        LOG_WARNING("tool_tracing_callback: unhandled callback record: {}", info.str());
+        LOG_CRITICAL("unhandled callback record phase: {}",
+                     static_cast<int>(record.phase));
+        ::rocprofsys::set_state(::rocprofsys ::State ::Finalized);
+        ::std ::abort();
     }
 }
 
@@ -2565,12 +2553,9 @@ tool_init(rocprofiler_client_finalize_t fini_func, void* user_data)
             &_data->memory_alloc_buffer));
         if(_data->memory_alloc_buffer.handle == 0UL)
         {
-            if(get_is_continuous_integration())
-            {
-                LOG_CRITICAL("Failed to create memory allocation buffer");
-                ::rocprofsys::set_state(::rocprofsys ::State ::Finalized);
-                ::std ::abort();
-            }
+            LOG_CRITICAL("Failed to create memory allocation buffer");
+            ::rocprofsys::set_state(::rocprofsys ::State ::Finalized);
+            ::std ::abort();
         }
         auto _ops =
             rocprofiler_sdk::get_operations(ROCPROFILER_BUFFER_TRACING_MEMORY_ALLOCATION);
