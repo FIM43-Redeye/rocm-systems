@@ -35,6 +35,7 @@
 #include "memory/std_allocator.hpp"
 #include "util.hpp"
 #include "bootstrap/bootstrap.hpp"
+#include "constmem.hpp"
 
 namespace rocshmem {
 
@@ -65,7 +66,7 @@ class IpcOnImpl {
     if (nullptr == pes_with_ipc_avail) { return false; }
 
     for (int i=0; i<shm_size; i++) {
-      if (pes_with_ipc_avail[i] == target_pe) {
+      if (constmem.local_pes[i] == target_pe) {
         *local_target_pe = i;
         return true;
       }

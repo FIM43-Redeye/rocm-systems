@@ -222,7 +222,8 @@ static void setFilesLimit() {
     exit(1);
   }
 
-  init_constant_memory();
+  init_constant_memory(backend->ipcImpl.pes_with_ipc_avail,
+                       backend->ipcImpl.shm_size);
 }
 
 [[maybe_unused]] __host__ static void inline library_init_subcomm(TcpBootstrap *bootstrap, int nranks, int rank) {
@@ -331,7 +332,8 @@ static void setFilesLimit() {
     exit(1);
   }
 
-  init_constant_memory();
+  init_constant_memory(backend->ipcImpl.pes_with_ipc_avail,
+                       backend->ipcImpl.shm_size);
 }
 
 [[maybe_unused]] __host__ int rocshmem_init_attr(unsigned int flags,

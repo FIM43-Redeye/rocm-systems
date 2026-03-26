@@ -30,12 +30,15 @@
 
 namespace rocshmem {
 
+const int MAX_NUM_LOCAL_PES = 16;
+
 struct constmem_t {
   uint64_t alltoall_wg_algo;
+  int local_pes[MAX_NUM_LOCAL_PES];
 } __attribute__ ((aligned (16)));
 
 extern __constant__ constmem_t constmem;
-void init_constant_memory(void);
+void init_constant_memory(void *ipc_array, int ipc_array_len);
 
 }  // namespace rocshmem
 
