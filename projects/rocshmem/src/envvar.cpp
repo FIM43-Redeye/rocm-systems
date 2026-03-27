@@ -73,6 +73,7 @@ namespace envvar {
     const var<bool> override_nic_firmware_check("OVERRIDE_NIC_FIRMWARE_CHECK", "", false);
     const var<std::string> alltoallv_wg_algo("ALLTOALLV_WG_ALGO", "");
     const var<uint32_t> sq_size("SQ_SIZE", "", 4096);
+    const var<bool> disable_sq_slot_checks("DISABLE_SQ_SLOT_CHECKS", "", false);
   }  // namespace gda
 
   namespace _detail {

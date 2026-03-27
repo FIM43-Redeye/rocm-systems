@@ -38,6 +38,8 @@ __device__ uint32_t QueuePair::reserve_sq(uint64_t activemask, uint32_t num_wqes
   }
   my_sq_prod = __shfl(my_sq_prod, get_first_active_lane_id(activemask));
 
+  if (constmem.disable_sq_slot_checks) { return my_sq_prod; }
+
   // wait for that space to be available
   ionic_quiet_internal(activemask, my_sq_prod + num_wqes - sq_mask);
 
@@ -49,6 +51,8 @@ __device__ uint32_t QueuePair::reserve_sq_single(uint32_t num_wqes) {
 
   // reserve space for wqes in sq
   my_sq_prod = __hip_atomic_fetch_add(&sq_prod, num_wqes, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_AGENT);
+
+  if (constmem.disable_sq_slot_checks) { return my_sq_prod; }
 
   // wait for that space to be available
   ionic_quiet_internal_ccqe_single(my_sq_prod + num_wqes - sq_mask);

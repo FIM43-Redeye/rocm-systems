@@ -191,6 +191,8 @@ __device__ void QueuePair::mlx5_poll_cq_until(uint16_t requested_available_slots
   uint16_t consumed_slots;
   uint16_t available_slots;
 
+  if (constmem.disable_sq_slot_checks) { return; }
+
   uint16_t sq_depth = mlx5_sq.depth;
 
   uint64_t sq_post = __hip_atomic_load(&mlx5_sq.post, __ATOMIC_ACQUIRE, __HIP_MEMORY_SCOPE_AGENT);

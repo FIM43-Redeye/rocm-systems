@@ -17,6 +17,8 @@ void init_constant_memory(void) {
     constmem_values.alltoall_wg_algo = gda::ALLTOALLV_WG_ALGO_COPY;
   }
 
+  constmem_values.disable_sq_slot_checks = envvar::gda::disable_sq_slot_checks;
+
   CHECK_HIP(hipMemcpyToSymbol(HIP_SYMBOL(constmem), &constmem_values, sizeof(constmem_t)));
 }
 

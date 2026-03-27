@@ -32,6 +32,7 @@ namespace rocshmem {
 
 struct constmem_t {
   uint64_t alltoall_wg_algo;
+  bool disable_sq_slot_checks;
 } __attribute__ ((aligned (16)));
 
 extern __constant__ constmem_t constmem;

@@ -175,6 +175,8 @@ __device__ void QueuePair::bnxt_poll_cq_until(uint32_t requested_available_slots
   uint32_t consumed_slots;
   uint32_t available_slots;
 
+  if (constmem.disable_sq_slot_checks) { return; }
+
   sq_depth = bnxt_sq.depth;
 
   do {

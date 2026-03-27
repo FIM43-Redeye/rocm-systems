@@ -136,3 +136,14 @@ control the behavior of rocSHMEM.
         | This environment variable sets the length of the SQ for GDA.
       - ``4096``
       - | Maximum number of Work Queue Entries (WQEs) posted on the Send Queue (SQ)
+
+    * - | ``ROCSHMEM_GDA_DISABLE_SQ_SLOT_CHECKS``
+        | This enviroment variable disables SQ slot checking for rocSHMEM GDA.
+        | Typically, rocSHMEM polls for free slots on the SQ if there is not enough slots to post
+        | a request. If we make the SQ large enough that there is availablity,
+        | we can disable checking. This results in a performance improvment in some applications
+        | but it is not generally applicable to all rocSHMEM applications.
+        | To increase SQ size please use ``ROCSHMEM_GDA_SQ_SIZE``.
+      - ``0``
+      - | ``0``: Slot Checks Enabled.
+        | ``1``: Slot Checks Disabled.
