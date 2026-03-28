@@ -26,6 +26,7 @@ add_custom_command(
         ${PY_PACKAGE_DIR}/Release_Notes.md
     DEPENDS amdsmi_cli
     COMMAND mkdir -p ${PY_PACKAGE_DIR}/
+    COMMAND mkdir -p ${PY_PACKAGE_DIR}/subcommands/
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/__init__.py ${PY_PACKAGE_DIR}/
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/amdsmi_cli.py ${PY_PACKAGE_DIR}/
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/amdsmi_commands.py ${PY_PACKAGE_DIR}/
@@ -40,6 +41,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/BDF.py ${PY_PACKAGE_DIR}/
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/README.md ${PY_PACKAGE_DIR}/
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/Release_Notes.md ${PY_PACKAGE_DIR}/
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/subcommands ${PY_PACKAGE_DIR}/subcommands
 )
 
 # The CLI requires the python amdsmi wrapper to be installed
