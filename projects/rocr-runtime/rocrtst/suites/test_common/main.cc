@@ -534,6 +534,13 @@ TEST(rocrtstFunc, SvmMemory_Basic_Test) {
   );
 }
 
+TEST(rocrtstFunc, SvmMemory_AccessedBy_All_Devices_Test) {
+  RUN_IF_NOT_EMU_MODE(SvmMemoryTestBasic smt;
+
+                      RunCustomTestProlog(&smt); smt.TestAccessedByAllDevices();
+                      RunCustomTestEpilog(&smt););
+}
+
 TEST(rocrtstFunc, VirtMemory_Basic_Test) {
   RUN_IF_NOT_EMU_MODE(
     VirtMemoryTestBasic vmt;
