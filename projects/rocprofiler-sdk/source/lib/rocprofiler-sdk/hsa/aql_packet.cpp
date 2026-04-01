@@ -30,7 +30,7 @@
     if((fn) != HSA_STATUS_SUCCESS)                                                                 \
     {                                                                                              \
         ROCP_ERROR << message;                                                                     \
-        exit(1);                                                                                   \
+        throw std::runtime_error(message);                                                                                   \
     }
 
 namespace rocprofiler
