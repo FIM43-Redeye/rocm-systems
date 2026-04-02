@@ -576,7 +576,8 @@ void SvmMemoryTestBasic::TestAccessedByAllDevices(void) {
   // Ensure cleanup on test exit (normal or via ASSERT failure)
   auto cleanup_svm = [&]() {
     if (svm_ptr) {
-      hsa_amd_vmem_address_free(svm_ptr, kPageSize);
+      hsa_status_t status = hsa_amd_vmem_address_free(svm_ptr, kPageSize);
+      EXPECT_SUCCESS(status);
       svm_ptr = nullptr;
     }
   };
