@@ -712,7 +712,7 @@ diff --git a/src/transport/net_ib.cc b/src/transport/net_ib.cc
      wr.send_flags |= IBV_SEND_SIGNALED;
      wr.wr_id = req - comm->base.reqs;
      ncclIbAddEvent(req, ctsQp->devIndex, &comm->devs[ctsQp->devIndex].base);
-@@ -2644,10 +2876,16 @@ ncclResult_t ncclIbPostFifo(struct ncclI
+@@ -2644,10 +2876,15 @@ ncclResult_t ncclIbPostFifo(struct ncclI
  
    comm->remFifo.fifoTail++;
  
@@ -724,7 +724,6 @@ diff --git a/src/transport/net_ib.cc b/src/transport/net_ib.cc
  }
  
  ncclResult_t ncclIbIrecv(void* recvComm, int n, void** data, size_t* sizes, int* tags, void** mhandles, void** phandles, void** request) {
-+  ncclResult_t res = ncclSuccess;
 +  bool netOptRecvCompletionEnabled = false;
    struct ncclIbRecvComm* comm = (struct ncclIbRecvComm*)recvComm;
    ncclResult_t ret = ncclSuccess;
