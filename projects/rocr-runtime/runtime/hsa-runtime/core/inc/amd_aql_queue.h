@@ -78,6 +78,15 @@ class AqlQueue : public core::Queue, private core::LocalSignal, public core::Doo
   /// @brief Destroy ref counted queue
   void Destroy() override;
 
+  /// @brief Invoke the per-queue error callback if one is registered
+  /// and it is not the default handler.
+  void InvokeErrorCallback(hsa_status_t error) {
+    if (errors_callback_ != nullptr &&
+        errors_callback_ != core::Queue::DefaultErrorHandler) {
+      errors_callback_(error, public_handle(), errors_data_);
+    }
+  }
+
   /// @brief Atomically reads the Read index of with Acquire semantics
   ///
   /// @return uint64_t Value of read index

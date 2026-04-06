@@ -913,6 +913,17 @@ class Runtime {
   // Kfd version
   KfdVersion_t kfd_version;
 
+  // Queue that caused the most recent VM fault, set by ExceptionHandler.
+  std::atomic<hsa_queue_t*> vm_fault_queue_{nullptr};
+
+ public:
+  void SetVMFaultQueue(hsa_queue_t* queue) {
+    vm_fault_queue_.store(queue, std::memory_order_release);
+  }
+  hsa_queue_t* GetVMFaultQueue() const {
+    return vm_fault_queue_.load(std::memory_order_acquire);
+  }
+
   std::unique_ptr<AMD::SvmProfileControl> svm_profile_;
 
   // IPC DMA buf socket server for dmabuf FD passing

@@ -41,6 +41,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <cassert>
+#include <chrono>
+#include <thread>
 #include <cstring>
 #include <regex>
 #include <string>
@@ -65,6 +67,7 @@
 #include "core/inc/amd_core_dump.hpp"
 #include "core/inc/amd_cpu_agent.h"
 #include "core/inc/amd_gpu_agent.h"
+#include "core/inc/amd_aql_queue.h"
 #include "core/inc/amd_memory_region.h"
 #include "core/inc/amd_topology.h"
 #include "core/inc/exceptions.h"
@@ -2131,6 +2134,36 @@ bool Runtime::VMFaultHandler(hsa_signal_value_t val, void* arg) {
 
   HsaMemoryAccessFault& fault =
       vm_fault_event->EventData.EventData.MemoryAccessFault;
+
+  // The per-queue ExceptionHandler runs on a separate thread and stores the
+  // faulting queue handle.  Give it a brief window to complete before we
+  // proceed (best-effort; the process is about to abort anyway).
+  hsa_queue_t* faulting_queue = runtime_singleton_->GetVMFaultQueue();
+  if (faulting_queue == nullptr &&
+      runtime_singleton_->KfdVersion().supports_exception_debugging) {
+    auto deadline = timer::fast_clock::now() + std::chrono::milliseconds(50);
+    while (faulting_queue == nullptr && timer::fast_clock::now() < deadline) {
+      std::this_thread::yield();
+      faulting_queue = runtime_singleton_->GetVMFaultQueue();
+    }
+  }
+
+  // Invoke per-queue error callbacks so consumers
+  auto node_it = runtime_singleton_->agents_by_node_.find(fault.NodeId);
+  if (node_it != runtime_singleton_->agents_by_node_.end()) {
+    Agent* agent = node_it->second.front();
+    if (agent->device_type() == Agent::DeviceType::kAmdGpuDevice) {
+      AMD::GpuAgent* gpu_agent = static_cast<AMD::GpuAgent*>(agent);
+      for (auto* q : gpu_agent->GetAqlQueues()) {
+        auto* aql_q = static_cast<AMD::AqlQueue*>(q);
+        if (faulting_queue == nullptr || aql_q->public_handle() == faulting_queue) {
+          aql_q->InvokeErrorCallback(
+              static_cast<hsa_status_t>(HSA_STATUS_ERROR_MEMORY_FAULT));
+          if (faulting_queue != nullptr) break;
+        }
+      }
+    }
+  }
 
   hsa_status_t custom_handler_status = HSA_STATUS_ERROR;
   auto system_event_handlers = runtime_singleton_->GetSystemEventHandlers();

@@ -990,19 +990,25 @@ static inline void packet_store_release(uint32_t* packet, uint16_t header, uint1
 void VirtualGPU::AnalyzeAqlQueue() const {
   const uint32_t queueSize = gpu_queue_->size;
   const uint32_t queueMask = queueSize - 1;
-  const uint32_t sw_queue_size = queueMask;
   uint64_t index = Hsa::queue_load_write_index_relaxed(gpu_queue_);
   uint64_t read = Hsa::queue_load_read_index_relaxed(gpu_queue_);
-  if (index > read) {
+
+  uint64_t scan_start = read;
+  if (index == read && index > 0) {
+    scan_start = index - 1;
+  }
+
+  if (index > read || (index == read && index > 0)) {
     int valid_packet_idx = 0;
     constexpr int kAqlSearchWindow = 32;
     while (valid_packet_idx < kAqlSearchWindow) {
-      // Read AQL packet header and check if it's invalid, which means it's done
       auto aql_loc = &(reinterpret_cast<hsa_kernel_dispatch_packet_t*>(
-          gpu_queue_->base_address))[(read + valid_packet_idx) & queueMask];
-      // If the packet is invalid, then continue search
+          gpu_queue_->base_address))[(scan_start + valid_packet_idx) & queueMask];
       if (extractAqlBits((*aql_loc).header, HSA_PACKET_HEADER_TYPE, HSA_PACKET_HEADER_WIDTH_TYPE) ==
           HSA_PACKET_TYPE_INVALID) {
+        if (index == read) {
+          break;
+        }
         valid_packet_idx++;
       } else {
         break;
@@ -1012,16 +1018,15 @@ void VirtualGPU::AnalyzeAqlQueue() const {
       printf("VGPU(%p) Queue(%p). Couldn't find the hang AQL packet!\n", this, gpu_queue_);
       return;
     }
-    // Read AQL packet and check if it's a kernel dispatch
     auto aql_loc = &(reinterpret_cast<hsa_kernel_dispatch_packet_t*>(
-        gpu_queue_->base_address))[(read + valid_packet_idx) & queueMask];
+        gpu_queue_->base_address))[(scan_start + valid_packet_idx) & queueMask];
     auto packet = *aql_loc;
     auto header = packet.header;
-    if (extractAqlBits(header, HSA_PACKET_HEADER_TYPE, HSA_PACKET_HEADER_WIDTH_TYPE) ==
-        HSA_PACKET_TYPE_KERNEL_DISPATCH) {
+    auto pkt_type = extractAqlBits(header, HSA_PACKET_HEADER_TYPE, HSA_PACKET_HEADER_WIDTH_TYPE);
+
+    if (pkt_type == HSA_PACKET_TYPE_KERNEL_DISPATCH || (index == read && packet.kernel_object != 0)) {
       auto it = dev().KernelMap().find(packet.kernel_object);
       if (it != dev().KernelMap().end()) {
-        // @note: It's possible to demangle the name with comgr
         printf("Kernel Name: %s\n", it->second.name().c_str());
       } else {
         printf("VGPU(%p) Queue(%p). Couldn't find kernel\n", this, gpu_queue_);

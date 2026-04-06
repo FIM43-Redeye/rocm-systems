@@ -726,7 +726,7 @@ typedef enum hsa_amd_agent_info_s {
    */
   HSA_AMD_AGENT_INFO_HAS_EXPERT_SCHED_MODE = 0xA11B,
   /**
-   * Queries the secondary CUID (128-bit UUID (16 bytes) in UUIDv8 format) 
+   * Queries the secondary CUID (128-bit UUID (16 bytes) in UUIDv8 format)
    * of a CPU/GPU agent. The type of this attribute is uint8_t[16].
    */
   HSA_AMD_AGENT_INFO_CUID = 0xA11C,

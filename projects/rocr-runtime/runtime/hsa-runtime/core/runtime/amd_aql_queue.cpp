@@ -508,7 +508,7 @@ hsa_status_t AqlQueue::GetInfo(hsa_queue_info_attribute_t attribute, void* value
       break;
     case HSA_QUEUE_INFO_HW_ID:
       // Return the hardware queue ID for both counted and non-counted queues
-      *static_cast<uint32_t*>(value) = public_handle()->id; 
+      *static_cast<uint32_t*>(value) = public_handle()->id;
       break;
     default:
       return HSA_STATUS_ERROR_INVALID_ARGUMENT;
@@ -1331,10 +1331,10 @@ bool AqlQueue::ExceptionHandler(hsa_signal_value_t error_code, void* arg) {
   // Undefined or unexpected code
   assert((errorCode != HSA_STATUS_ERROR) && "Undefined or unexpected queue error code");
 
-  // Suppress VM fault reporting.  This is more useful when reported through the system error
-  // handler.
+  // VM fault callback is handled by VMFaultHandler.  Record which queue
+  // faulted so VMFaultHandler can invoke its callback precisely.
   if (errorCode == static_cast<hsa_status_t>(HSA_STATUS_ERROR_MEMORY_FAULT)) {
-    debug_print("Queue error - HSA_STATUS_ERROR_MEMORY_FAULT\n");
+    core::Runtime::runtime_singleton_->SetVMFaultQueue(queue->public_handle());
     return exceptionHandlerDone();
   }
 

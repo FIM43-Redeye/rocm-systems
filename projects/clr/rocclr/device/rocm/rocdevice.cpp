@@ -3885,6 +3885,12 @@ void callbackQueue(hsa_status_t status, hsa_queue_t* queue, void* data) {
         vgpu->AnalyzeAqlQueue();
       }
     }
+    // VM faults are handled by ROCR's VMFaultHandler which invokes this
+    // callback for diagnostics only. Return here to let VMFaultHandler
+    // manage the abort and core dump.
+    if (status == static_cast<hsa_status_t>(HSA_STATUS_ERROR_MEMORY_FAULT)) {
+      return;
+    }
     // Abort on device exceptions.
     const char* errorMsg = 0;
     Hsa::status_string(status, &errorMsg);
