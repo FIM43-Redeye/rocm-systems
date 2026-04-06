@@ -8,6 +8,8 @@
 
 #include "hip_internal.hpp"
 
+extern "C" void __hipOnError(hipError_t err) { (void)err; }
+
 namespace hip {
 hipError_t hipExtGetLastError() {
   HIP_INIT_API(hipExtGetLastError);

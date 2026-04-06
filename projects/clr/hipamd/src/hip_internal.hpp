@@ -80,6 +80,12 @@ const char* ihipGetErrorName(hipError_t hip_error);
 
 } // namespace hip
 
+#if defined(__GNUC__) || defined(__clang__)
+extern "C" __attribute__((visibility("default"))) void __hipOnError(hipError_t err);
+#else
+extern "C" void __hipOnError(hipError_t err);
+#endif
+
 // Helper: set up TLS device pointer on first use.
 #define HIP_INIT_TLS_DEVICE()                                                                      \
   if (hip::tls.device_ == nullptr && !hip::g_devices.empty()) {                                    \
@@ -155,6 +161,11 @@ const char* ihipGetErrorName(hipError_t hip_error);
   } else if (hip::tls.last_command_error_ != hipSuccess &&                                         \
              hip::tls.last_command_error_ != hipErrorNotReady) {                                   \
     hip::tls.last_error_ = hip::tls.last_command_error_;                                           \
+  }                                                                                                \
+  if (hip::tls.last_command_error_ != hipSuccess &&                                                \
+      hip::tls.last_command_error_ != hipErrorNotReady) {                                          \
+    /* The debugger may place a breakpoint at __hipOnError to catch failed API calls */            \
+    __hipOnError(hip::tls.last_command_error_);                                                    \
   }
 
 #define HIP_RETURN_DURATION(ret, ...)                                                              \
