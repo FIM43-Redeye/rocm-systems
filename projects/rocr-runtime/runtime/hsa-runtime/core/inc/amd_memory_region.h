@@ -82,7 +82,7 @@ class MemoryRegion : public core::MemoryRegion {
 
   ~MemoryRegion();
 
-  hsa_status_t Allocate(size_t& size, AllocateFlags alloc_flags, void** address, int agent_node_id = 0) const;
+  hsa_status_t Allocate(size_t& size, AllocateFlags alloc_flags, void** address, /*uint64_t *mmap_offset,*/ int agent_node_id = 0) const;
 
   hsa_status_t Free(void* address, size_t size) const;
 
@@ -196,7 +196,7 @@ private:
                                              const core::Runtime::LinkInfo& link_info) const;
 
   // Operational body for Allocate.  Recursive.
-  hsa_status_t AllocateImpl(size_t& size, AllocateFlags alloc_flags, void** address, int agent_node_id) const;
+  hsa_status_t AllocateImpl(size_t& size, AllocateFlags alloc_flags, void** address, /*uint64_t *mmap_offset,*/ int agent_node_id) const;
 
   // Operational body for Free.  Recursive.
   hsa_status_t FreeImpl(void* address, size_t size) const;
