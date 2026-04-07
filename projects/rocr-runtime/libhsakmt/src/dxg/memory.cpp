@@ -1135,6 +1135,17 @@ HSAKMT_STATUS HSAKMTAPI hsaKmtHandleImport(const HsaExternalHandleDesc* import_d
   return HSAKMT_STATUS_ERROR;
 }
 
+HSAKMT_STATUS HSAKMTAPI hsaKmtHandleExport(const HsaHandleExportDesc* desc,
+                                          HsaMemoryExportResult* res,
+                                          HsaHandleExportFlags* flags)
+{
+  (void)desc;
+  (void)res;
+  (void)flags;
+  // TODO: Implement me
+  return HSAKMT_STATUS_ERROR;
+}
+
 
 HSAKMT_STATUS HSAKMTAPI hsaKmtMemoryVaMap(HsaMemoryObjectHandle Handle,
               HSAuint64 offset, HSAuint64 size, HSAuint64 addr,
