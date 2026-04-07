@@ -199,4 +199,29 @@ Hip::hipInit() const
     (void)throwOnHipError<Hip::RuntimeError>(::hipInit(0));
 }
 
+void
+Hip::hipHostRegister(void *hostPtr, size_t sizeBytes, unsigned int flags) const
+{
+    (void)throwOnHipError<Hip::RuntimeError>(::hipHostRegister(hostPtr, sizeBytes, flags));
+}
+
+void
+Hip::hipHostUnregister(void *hostPtr) const
+{
+    (void)throwOnHipError<Hip::RuntimeError>(::hipHostUnregister(hostPtr));
+}
+
+void
+Hip::hipSetDevice(int device) const
+{
+    (void)throwOnHipError<Hip::RuntimeError>(::hipSetDevice(device));
+}
+
+int
+Hip::hipGetDevice() const
+{
+    int device;
+    (void)throwOnHipError<Hip::RuntimeError>(::hipGetDevice(&device));
+    return device;
+}
 }
