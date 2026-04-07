@@ -95,4 +95,13 @@ struct Hip {
     };
 };
 
+class ScopedHipSetDevice {
+public:
+    ScopedHipSetDevice(int device_id);
+    ~ScopedHipSetDevice();
+
+private:
+    int original_device;
+};
+
 }
