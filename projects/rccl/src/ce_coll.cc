@@ -6,11 +6,13 @@
 
 #include "comm.h"
 #include "register_inline.h"
+#include <algorithm>
 #include <cuda.h>
 #include "rocmwrap.h"
 #include "ce_coll.h"
 #include "alloc.h"
 
+RCCL_PARAM(CeMultiStreams, "CE_MULTI_STREAMS", 0);
 // Static constant for graph synchronization
 static const uint32_t GRAPH_SYNC_VALUE = 1;
 
@@ -45,7 +47,21 @@ ncclResult_t ncclCeInit(struct ncclComm* comm) {
   comm->ceColl.useCompletePtr = false;
   comm->ceColl.intraBatchSyncFreq = CE_COLL_INTRA_BATCH_SYNC_FREQ;
   comm->ceColl.intraBatchSyncMsgThreshold = CE_COLL_INTRA_BATCH_SYNC_MSG_THRESHOLD;
+  comm->ceColl.nCopyStreams = 0;
   INFO(NCCL_INIT, "Init CE, rank %d baseUCSymReadyPtr %p, baseUCSymComplPtr %p, seq num %d", comm->rank, comm->ceColl.baseUCSymReadyPtr, comm->ceColl.baseUCSymComplPtr, comm->ceColl.ceSeqNum);
+  {
+    int multiStreams = rcclParamCeMultiStreams();
+    if (multiStreams > 0) {
+      int targetStreams = std::min(multiStreams, (int)RCCL_CE_NUM_COPY_STREAMS);
+      INFO(NCCL_INIT, "CE multi-stream enabled: rank %d using %d streams (requested=%d)", comm->rank, targetStreams, multiStreams);
+      for (int i = 0; i < targetStreams; i++) {
+        CUDACHECKGOTO(cudaStreamCreateWithFlags(&comm->ceColl.copyStreams[i], cudaStreamNonBlocking), ret, fail);
+        // Track successfully created streams so ncclCeFinalize only cleans up what exists
+        comm->ceColl.nCopyStreams++;
+        CUDACHECKGOTO(cudaEventCreateWithFlags(&comm->ceColl.copyEvents[i], cudaEventDisableTiming), ret, fail);
+      }
+    } 
+  }
 
 exit:
   return ret;
@@ -72,6 +88,12 @@ ncclResult_t ncclCeFinalize(struct ncclComm* comm) {
     comm->ceColl.baseUCSymComplPtr = NULL;
     comm->ceColl.ceSyncWin = NULL;
   }
+  // Clean up copy streams and events
+  for (int i = 0; i < comm->ceColl.nCopyStreams; i++) {
+    CUDACHECKIGNORE(cudaEventDestroy(comm->ceColl.copyEvents[i]));
+    CUDACHECKIGNORE(cudaStreamDestroy(comm->ceColl.copyStreams[i]));
+  }
+  comm->ceColl.nCopyStreams = 0;
 
 exit:
   return ret;
@@ -83,8 +105,9 @@ bool ncclCeImplemented(ncclFunc_t coll, int/*ncclDevRedOp_t*/ red, ncclDataType_
   int driverVersion;
   if (ncclCudaDriverVersion(&driverVersion) != ncclSuccess) return false;
 
-  // CE is supported in CUDA 12.5 and later
-  if (driverVersion >= 12050) {
+  // CE is supported in ROCm 7.12 and later
+  // hipDriverGetVersion() returns 70200000 for ROCm 7.12
+  if (driverVersion >= 70200000) {
     switch (coll) {
     case ncclFuncAllGather:
     case ncclFuncAlltoAll:
@@ -130,7 +153,7 @@ ncclResult_t ncclPrepMCSync(struct ncclComm* comm, bool isComplete, hipStreamBat
   for (int r = 0; r < comm->nRanks; ++r) {
     if (r == comm->rank) continue;
     batchParams[*opIdx] = {};
-    // batchParams[*opIdx].waitValue.operation = CU_STREAM_MEM_OP_WAIT_VALUE_32;
+    batchParams[*opIdx].waitValue.operation = CU_STREAM_MEM_OP_WAIT_VALUE_32;
     batchParams[*opIdx].waitValue.address = (CUdeviceptr)(isComplete ? (void*)&completePtrs[r] : (void*)&readyPtrs[r]);
     batchParams[*opIdx].waitValue.value = waitValue;
     batchParams[*opIdx].waitValue.flags = CU_STREAM_WAIT_VALUE_EQ;
@@ -163,10 +186,10 @@ ncclResult_t ncclPrepUCSync(struct ncclComm* comm, bool isComplete,
     size_t offset = (uint8_t*)dstPtr - (uint8_t*)comm->ceColl.ceSyncWin->userPtr;
     NCCLCHECKGOTO(ncclDevrGetLsaRankPtr(comm, comm->ceColl.ceSyncWin, offset, r, &peerDstPtr), ret, fail);
     batchParams[*opIdx] = {};
-    // batchParams[*opIdx].writeValue.operation = CU_STREAM_MEM_OP_WRITE_VALUE_32;
+    batchParams[*opIdx].writeValue.operation = CU_STREAM_MEM_OP_WRITE_VALUE_32;
     batchParams[*opIdx].writeValue.address  = (CUdeviceptr)peerDstPtr;
     batchParams[*opIdx].writeValue.value = waitValue;
-    // batchParams[*opIdx].writeValue.flags = CU_STREAM_WRITE_VALUE_DEFAULT;
+    batchParams[*opIdx].writeValue.flags = 0;
     (*opIdx)++;
   }
 
@@ -174,7 +197,7 @@ ncclResult_t ncclPrepUCSync(struct ncclComm* comm, bool isComplete,
   for (int r = 0; r < comm->nRanks; ++r) {
     if (r == comm->rank) continue;
     batchParams[*opIdx] = {};
-    // batchParams[*opIdx].waitValue.operation = CU_STREAM_MEM_OP_WAIT_VALUE_32;
+    batchParams[*opIdx].waitValue.operation = CU_STREAM_MEM_OP_WAIT_VALUE_32;
     batchParams[*opIdx].waitValue.address  = (CUdeviceptr)(isComplete ? (void*)&completePtrs[r] : (void*)&readyPtrs[r]);
     batchParams[*opIdx].waitValue.value = waitValue;
     batchParams[*opIdx].waitValue.flags = CU_STREAM_WAIT_VALUE_EQ;
@@ -213,10 +236,10 @@ ncclResult_t ncclMemOpSync(struct ncclComm* comm, cudaStream_t stream) {
   if (ncclCudaGraphValid(comm->planner.capturingGraph)) {
     for (int i = 0; i < comm->nRanks; i++) {
       batchParams[opIdx] = {};
-      // batchParams[opIdx].writeValue.operation = CU_STREAM_MEM_OP_WRITE_VALUE_32;
+      batchParams[opIdx].writeValue.operation = CU_STREAM_MEM_OP_WRITE_VALUE_32;
       batchParams[opIdx].writeValue.address = (CUdeviceptr)(comm->ceColl.useCompletePtr ? (void*)&completePtrs[i] : (void*)&readyPtrs[i]);
       batchParams[opIdx].writeValue.value = 0;
-      // batchParams[opIdx].writeValue.flags = CU_STREAM_WRITE_VALUE_DEFAULT;
+      batchParams[opIdx].writeValue.flags = 0;
       opIdx++;
     }
   }
@@ -242,7 +265,7 @@ ncclResult_t ncclCeInitBatchOpsParams(struct ncclCeBatchOpsParams* params, int n
   params->sizes = nullptr;
   params->numOps = 0;
   params->intraBatchSync = false;
-#if CUDART_VERSION >= 12080
+#if ROCM_VERSION >= 71200
   params->attrs = nullptr;
   params->attrIdxs = nullptr;
   params->numAttrs = 0;
@@ -251,7 +274,7 @@ ncclResult_t ncclCeInitBatchOpsParams(struct ncclCeBatchOpsParams* params, int n
   NCCLCHECKGOTO(ncclCalloc(&params->srcs, nRanks), ret, fail);
   NCCLCHECKGOTO(ncclCalloc(&params->dsts, nRanks), ret, fail);
   NCCLCHECKGOTO(ncclCalloc(&params->sizes, nRanks), ret, fail);
-#if CUDART_VERSION >= 12080
+#if ROCM_VERSION >= 71200
   NCCLCHECKGOTO(ncclCalloc(&params->attrs, nRanks), ret, fail);
   NCCLCHECKGOTO(ncclCalloc(&params->attrIdxs, nRanks), ret, fail);
 #endif
@@ -265,7 +288,7 @@ void ncclCeFreeBatchOpsParams(struct ncclCeBatchOpsParams* params) {
   if (params->srcs) free(params->srcs);
   if (params->dsts) free(params->dsts);
   if (params->sizes) free(params->sizes);
-#if CUDART_VERSION >= 12080
+#if ROCM_VERSION >= 71200
   if (params->attrs) free(params->attrs);
   if (params->attrIdxs) free(params->attrIdxs);
 #endif
@@ -300,55 +323,74 @@ ncclResult_t ncclCeLaunchBatchOps(struct ncclComm* comm, struct ncclCeBatchOpsPa
         NCCLCHECKGOTO(ncclMemOpSync(comm, stream), ret, fail);
       }
     }
-  }
+  } 
   //--------------No graph capture--------------
   else {
-    if (/*CUDART_VERSION >= 12080 &&*/ driverVersion >= 12080) {
-#if CUDART_VERSION >= 12080
-    // For CUDA 12.8+, use batch memory copy for better performance
-    params->attrs[0] = {};
-    params->attrs[0].srcAccessOrder = cudaMemcpySrcAccessOrderStream;
-    params->attrs[0].flags = cudaMemcpyFlagPreferOverlapWithCompute;
-    params->attrIdxs[0] = 0;
-    params->numAttrs = 1;
+    // driverVersion is reported as 70200000 for ROCm 7.12 when using hipDriverGetVersion().
+    if (ROCM_VERSION >= 71200 && driverVersion >= 70200000) {
+#if ROCM_VERSION >= 71200 
+      // For ROCm 7.12+, use batch memory copy for better performance
+      params->attrs[0] = {};
+      params->attrs[0].srcAccessOrder = cudaMemcpySrcAccessOrderStream;
+      params->attrs[0].flags = cudaMemcpyFlagPreferOverlapWithCompute;
+      params->attrIdxs[0] = 0;
+      params->numAttrs = 1;
 
-    if (params->intraBatchSync) {
-      // Break into multiple batches with sync between them
-      int batchSize = comm->ceColl.intraBatchSyncFreq;
-      for (int i = 0; i < params->numOps; i += batchSize) {
-        int currentBatchSize = (i + batchSize <= params->numOps) ? batchSize : params->numOps - i;
+      if (params->intraBatchSync) {
+        // Break into multiple batches with sync between them
+        int batchSize = comm->ceColl.intraBatchSyncFreq;
+        for (int i = 0; i < params->numOps; i += batchSize) {
+          int currentBatchSize = (i + batchSize <= params->numOps) ? batchSize : params->numOps - i;
+          INFO(NCCL_COLL, "CE: rank %d -> Batch path with intraBatchSync (cudaMemcpyBatchAsync, intraBatchSync), numOps=%zu, batchSize=%d", comm->rank, params->numOps, currentBatchSize);      
+          CUDACHECKGOTO(cudaMemcpyBatchAsync(
+            (void**)&params->dsts[i], (void**)&params->srcs[i], &params->sizes[i], currentBatchSize,
+            params->attrs, params->attrIdxs, params->numAttrs, nullptr, stream), ret, fail);
 
-        #if CUDART_VERSION >= 13000
-        CUDACHECKGOTO(cudaMemcpyBatchAsync(
-          &params->dsts[i], &params->srcs[i], &params->sizes[i], currentBatchSize,
-          params->attrs, params->attrIdxs, params->numAttrs, stream), ret, fail);
-        #else
-        CUDACHECKGOTO(cudaMemcpyBatchAsync(
-          &params->dsts[i], &params->srcs[i], &params->sizes[i], currentBatchSize,
-          params->attrs, params->attrIdxs, params->numAttrs, nullptr, stream), ret, fail);
-        #endif
-
-        // Sync after each batch
-        if (i + batchSize < params->numOps) {
-          NCCLCHECKGOTO(ncclMemOpSync(comm, stream), ret, fail);
+          // Sync after each batch
+          if (i + batchSize < params->numOps) {
+            NCCLCHECKGOTO(ncclMemOpSync(comm, stream), ret, fail);
+          }
         }
+      } else {
+        // Use single batch for all operations
+        INFO(NCCL_COLL, "CE: rank %d -> Batch path without intraBatchSync (cudaMemcpyBatchAsync), numOps=%zu", comm->rank, params->numOps);      
+        CUDACHECKGOTO(cudaMemcpyBatchAsync(
+          (void**)params->dsts, (void**)params->srcs, params->sizes, params->numOps,
+          params->attrs, params->attrIdxs, params->numAttrs, nullptr, stream), ret, fail);
+      }
+#endif
+    } else if (comm->ceColl.nCopyStreams > 0 && (int)params->numOps > 1 && !params->intraBatchSync) {
+
+      int nStreams = comm->ceColl.nCopyStreams;
+      int activeStreams = ((int)params->numOps < nStreams) ? (int)params->numOps : nStreams;
+      INFO(NCCL_COLL, "CE: rank %d -> No-Batch Multi-Stream path (%d streams), numOps=%zu", comm->rank, activeStreams, params->numOps);
+
+      // Make copy streams wait on the main stream
+      for (int s = 0; s < activeStreams; s++) {
+        CUDACHECKGOTO(cudaEventRecord(comm->ceColl.copyEvents[s], stream), ret, fail);
+        CUDACHECKGOTO(cudaStreamWaitEvent(comm->ceColl.copyStreams[s], comm->ceColl.copyEvents[s], 0), ret, fail);
+      }
+
+      // Distribute copies round-robin across streams
+      for (int i = 0; i < (int)params->numOps; i++) {
+        int s = i % activeStreams;
+        CUDACHECKGOTO(cudaMemcpyAsync(
+          (void*)params->dsts[i],
+          (void*)params->srcs[i],
+          params->sizes[i],
+          cudaMemcpyDeviceToDevice,
+          comm->ceColl.copyStreams[s]), ret, fail);
+      }
+
+      // Make main stream wait on all copy streams
+      for (int s = 0; s < activeStreams; s++) {
+        CUDACHECKGOTO(cudaEventRecord(comm->ceColl.copyEvents[s], comm->ceColl.copyStreams[s]), ret, fail);
+        CUDACHECKGOTO(cudaStreamWaitEvent(stream, comm->ceColl.copyEvents[s], 0), ret, fail);
       }
     } else {
-      // Use single batch for all operations
-      #if CUDART_VERSION >= 13000
-      CUDACHECKGOTO(cudaMemcpyBatchAsync(
-        params->dsts, params->srcs, params->sizes, params->numOps,
-        params->attrs, params->attrIdxs, params->numAttrs, stream), ret, fail);
-      #else
-      CUDACHECKGOTO(cudaMemcpyBatchAsync(
-        params->dsts, params->srcs, params->sizes, params->numOps,
-        params->attrs, params->attrIdxs, params->numAttrs, nullptr, stream), ret, fail);
-      #endif
-    }
-#endif
-    } else {
-      // For older CUDA versions, fall back to individual transfers
-      for (int i = 0; i < params->numOps; i++) {
+      // For older ROCm versions, fall back to individual transfers
+      INFO(NCCL_COLL, "CE: rank %d -> No-Batch Single-Stream path (cudaMemcpyAsync), numOps=%zu", comm->rank, params->numOps);
+      for (int i = 0; i < params->numOps; i++) {  
         CUDACHECKGOTO(cudaMemcpyAsync(
           (void*)params->dsts[i],
           (void*)params->srcs[i],
