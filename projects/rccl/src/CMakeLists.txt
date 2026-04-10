@@ -277,7 +277,6 @@ set(SRC_FILES
   src/plugin/tuner/tuner_v3.cc
   src/plugin/tuner/tuner_v4.cc
   src/plugin/tuner/tuner_v5.cc
-  src/ras/client.cc
   src/ras/client_support.cc
   src/ras/collectives.cc
   src/ras/peers.cc
@@ -858,39 +857,30 @@ if (NOT DWORDX4_INTRINSICS)
   target_compile_definitions(rccl PRIVATE DWORDX4_INTRINSICS_FORCE_OFF)
 endif()
 ## Set RCCL linked library directories
-target_link_directories(rccl PRIVATE ${SMI_LIB_DIR})
-
-if (ROCM_VERSION VERSION_GREATER_EQUAL "60100")
-    option(RCCL_ROCPROFILER_REGISTER "Enable rocprofiler-register support" ON)
-else()
-    if(RCCL_ROCPROFILER_REGISTER)
-        message(AUTHOR_WARNING "RCCL_ROCPROFILER_REGISTER is not valid option for ROCm < 6.2. Current ROCm version: ${ROCM_VERSION}")
-    endif()
-    set(RCCL_ROCPROFILER_REGISTER OFF CACHE BOOL "" FORCE)
-endif()
-if(RCCL_ROCPROFILER_REGISTER)
-  find_package(rocprofiler-register REQUIRED)
-  target_compile_definitions(rccl PRIVATE RCCL_ROCPROFILER_REGISTER=1)
-  target_link_libraries(
-      rccl PRIVATE rocprofiler-register::rocprofiler-register)
+# Only needed for plain library names (e.g. rocm_smi64). Imported targets (e.g. amd_smi)
+# carry their own location and do not require an explicit search path.
+if(DEFINED SMI_LIBRARIES AND NOT TARGET ${SMI_LIBRARIES})
+  target_link_directories(rccl ${_dep_vis} ${SMI_LIB_DIR})
 endif()
 
 ## Set RCCL linked libraries
+# _dep_vis is PRIVATE for shared builds (deps baked into .so) and PUBLIC for static builds
+# (consumers must satisfy all transitive deps at their own link step). Set in root CMakeLists.txt.
 if (HAVE_BFD)
-  target_link_libraries(rccl PRIVATE bfd)
+  target_link_libraries(rccl ${_dep_vis} bfd)
   if(HAVE_IBERTY)
-    target_link_libraries(rccl PRIVATE iberty z)
+    target_link_libraries(rccl ${_dep_vis} iberty z)
   endif()
 endif()
 if (ROCTX_ENABLE)
-  target_link_libraries(rccl PRIVATE ${ROCTX_LIB})
+  target_link_libraries(rccl ${_dep_vis} ${ROCTX_LIB})
 endif()
 target_link_libraries(rccl PRIVATE   -fgpu-rdc)             # Required when linking relocatable device code
-target_link_libraries(rccl PRIVATE   Threads::Threads)
+target_link_libraries(rccl ${_dep_vis} Threads::Threads)
 target_link_libraries(rccl INTERFACE hip::host)
 target_link_libraries(rccl PRIVATE   hip::device)
-target_link_libraries(rccl PRIVATE   dl)
-target_link_libraries(rccl PRIVATE   ${SMI_LIBRARIES})
+target_link_libraries(rccl ${_dep_vis} dl)
+target_link_libraries(rccl ${_dep_vis} ${SMI_LIBRARIES})
 target_link_libraries(rccl PRIVATE fmt::fmt-header-only)
 if(ENABLE_MSCCLPP)
   add_mscclpp_targets()

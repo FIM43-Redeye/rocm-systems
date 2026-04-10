@@ -634,45 +634,55 @@ configure_file(src/nccl.h.in ${PROJECT_BINARY_DIR}/include/nccl.h)      # Used b
 
 ## RCCL library
 #==================================================================================================
+# For shared builds, PRIVATE keeps internal deps from leaking into consumers' link lines.
+# For static builds, PUBLIC is required: librccl.a has no embedded deps, so consumers
+# must satisfy all transitive deps at their own link step. CMake propagates PUBLIC deps
+# automatically when the consumer uses target_link_libraries(... rccl).
+if(BUILD_SHARED_LIBS)
+  set(_dep_vis PRIVATE)
+else()
+  set(_dep_vis PUBLIC)
+endif()
+
+if(NOT BUILD_SHARED_LIBS)
+  # CMAKE_CXX_CREATE_STATIC_LIBRARY replaces the entire archive creation step as a single
+  # command, unlike CMAKE_CXX_ARCHIVE_CREATE which is split into create/append/finish and
+  # can be bypassed for large object lists. Must be set before add_subdirectory(src) so it
+  # is in effect when the rccl target is created.
+  # Only GPU offload flags are passed here. CMAKE_CXX_FLAGS / CMAKE_CXX_FLAGS_<BUILD_TYPE>
+  # are intentionally excluded: compile flags (-O3, -std=c++17, etc.) are already baked
+  # into each .o file, and link-time runtime selectors are only valid for final
+  # executable/shared-library linking, not --emit-static-lib.
+  set(_static_flags --hip-link -fgpu-rdc --emit-static-lib)
+  foreach(_target ${GPU_TARGETS})
+    list(APPEND _static_flags --offload-arch=${_target})
+  endforeach()
+  list(JOIN _static_flags " " _static_flags_str)
+  set(CMAKE_CXX_CREATE_STATIC_LIBRARY "<CMAKE_CXX_COMPILER> ${_static_flags_str} -o <TARGET> <OBJECTS>")
+endif()
+
 add_subdirectory(src)
+
+# rocprofiler-register: optional instrumentation support (ROCm >= 6.1).
+# find_package is called here (root scope) rather than inside add_subdirectory(src) so
+# that the rocprofiler-register::rocprofiler-register imported target is visible to all
+# sibling subdirectories (e.g. test/) that consume librccl.a transitively.
+if(ROCM_VERSION VERSION_GREATER_EQUAL "60100")
+  option(RCCL_ROCPROFILER_REGISTER "Enable rocprofiler-register support" ON)
+else()
+  if(RCCL_ROCPROFILER_REGISTER)
+    message(AUTHOR_WARNING "RCCL_ROCPROFILER_REGISTER is not valid option for ROCm < 6.1.0. Current ROCm version: ${ROCM_VERSION}")
+  endif()
+  set(RCCL_ROCPROFILER_REGISTER OFF CACHE BOOL "" FORCE)
+endif()
+if(RCCL_ROCPROFILER_REGISTER)
+  find_package(rocprofiler-register REQUIRED)
+  target_compile_definitions(rccl PRIVATE RCCL_ROCPROFILER_REGISTER=1)
+  target_link_libraries(rccl ${_dep_vis} rocprofiler-register::rocprofiler-register)
+endif()
 
 ## Setup librccl.so version
 rocm_set_soversion(rccl "1.0")
-
-# Used by the static-library link path below (expects a list).
-set(_rccl_cxxflags "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}}")
-separate_arguments(CXXFLAGS NATIVE_COMMAND "${_rccl_cxxflags}")
-
-if(NOT BUILD_SHARED_LIBS)
-  # To create a static lib with `-fgpu-rdc`, you need `--emit-static-lib` and `--hip-link`.
-  # You also need to invoke amdclang++ again to trigger GPU code generation.
-  set(static_link_flags
-    ${CXXFLAGS}
-    --hip-link
-    -fgpu-rdc
-    --emit-static-lib
-  )
-
-  # Find all the libraries we need to link at link time to include them in the clang link
-  # command line.
-  get_target_property(rccl_libs rccl LINK_LIBRARIES)
-  foreach(target ${rccl_libs})
-    if(TARGET ${target})
-      get_target_property(location ${target} LOCATION)
-      if(location)
-        LIST(APPEND static_link_flags -l${location})
-      endif()
-    endif()
-  endforeach()
-
-  foreach(target ${GPU_TARGETS})
-    list(APPEND static_link_flags --offload-arch=${target})
-  endforeach()
-  list(JOIN static_link_flags " " flags_str)
-
-  # Invoking amdclang++ this way will produce a static archive, so just override ARCHIVE_CREATE.
-  set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_CXX_COMPILER> ${flags_str} -o <TARGET> <OBJECTS>")
-endif()
 
 # Install settings
 #==================================================================================================
