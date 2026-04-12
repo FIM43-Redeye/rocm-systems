@@ -40,15 +40,22 @@ if(NOT CMAKE_CXX_COMPILER)
     endif()
 endif()
 
-# Set default per-build-type CXX flags unless the user has overridden them via $CXXFLAGS.
-if(NOT CMAKE_CXX_FLAGS)
-    if(NOT (DEFINED ENV{CXXFLAGS} AND NOT "$ENV{CXXFLAGS}" STREQUAL ""))
-        if("${CMAKE_BUILD_SUBTYPE}" STREQUAL "DebugFast")
+# Set default per-build-type CXX flags unless the user has overridden them via $CXXFLAGS
+# or by explicitly setting the per-type variable (e.g. -DCMAKE_CXX_FLAGS_DEBUG=...).
+# Note: CMAKE_CXX_FLAGS (base flags for all types) is intentionally not checked here —
+# it is orthogonal to per-type flags and should not suppress them.
+if(NOT (DEFINED ENV{CXXFLAGS} AND NOT "$ENV{CXXFLAGS}" STREQUAL ""))
+    if(NOT CMAKE_CXX_FLAGS_DEBUG)
+        if(CMAKE_BUILD_SUBTYPE MATCHES "DebugFast")
             set(CMAKE_CXX_FLAGS_DEBUG "-O1 -g")
         else()
             set(CMAKE_CXX_FLAGS_DEBUG "-O1 -g -ggdb3")
         endif()
+    endif()
+    if(NOT CMAKE_CXX_FLAGS_RELEASE)
         set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+    endif()
+    if(NOT CMAKE_CXX_FLAGS_RELWITHDEBINFO)
         set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
     endif()
 endif()
@@ -69,15 +76,22 @@ if(NOT CMAKE_C_COMPILER)
     endif()
 endif()
 
-# Set default per-build-type C flags unless the user has overridden them via $CFLAGS.
-if(NOT CMAKE_C_FLAGS)
-    if(NOT (DEFINED ENV{CFLAGS} AND NOT "$ENV{CFLAGS}" STREQUAL ""))
-        if("${CMAKE_BUILD_SUBTYPE}" STREQUAL "DebugFast")
+# Set default per-build-type C flags unless the user has overridden them via $CFLAGS
+# or by explicitly setting the per-type variable (e.g. -DCMAKE_C_FLAGS_DEBUG=...).
+# Note: CMAKE_C_FLAGS (base flags for all types) is intentionally not checked here —
+# it is orthogonal to per-type flags and should not suppress them.
+if(NOT (DEFINED ENV{CFLAGS} AND NOT "$ENV{CFLAGS}" STREQUAL ""))
+    if(NOT CMAKE_C_FLAGS_DEBUG)
+        if(CMAKE_BUILD_SUBTYPE MATCHES "DebugFast")
             set(CMAKE_C_FLAGS_DEBUG "-O1 -g")
         else()
             set(CMAKE_C_FLAGS_DEBUG "-O1 -g -ggdb3")
         endif()
+    endif()
+    if(NOT CMAKE_C_FLAGS_RELEASE)
         set(CMAKE_C_FLAGS_RELEASE "-O3")
+    endif()
+    if(NOT CMAKE_C_FLAGS_RELWITHDEBINFO)
         set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
     endif()
 endif()
