@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -26,13 +26,32 @@ from utils.metrics.aggregation import (
 )
 from utils.metrics.noise_clamping import to_noise_clamp
 
+if TYPE_CHECKING:
+    from utils.metrics.pmc_data_cache import PmcDataCache
+
+
+_AGGREGATION_FUNCTIONS: dict[str, Any] = {
+    "to_min": to_min,
+    "to_max": to_max,
+    "to_avg": to_avg,
+    "to_median": to_median,
+    "to_std": to_std,
+    "to_int": to_int,
+    "to_sum": to_sum,
+    "to_round": to_round,
+    "to_quantile": to_quantile,
+    "to_mod": to_mod,
+    "to_concat": to_concat,
+    "to_noise_clamp": to_noise_clamp,
+}
+
 
 class MetricEvaluator:
     """Encapsulates metric evaluation logic and eliminates global variables."""
 
     def __init__(
         self,
-        raw_pmc_df: pd.DataFrame | dict,
+        raw_pmc_df: PmcDataCache,
         sys_vars: dict[str, Any],
         empirical_peaks: dict[str, Any],
     ) -> None:
@@ -45,25 +64,12 @@ class MetricEvaluator:
         try:
             # Create comprehensive local context
             local_expr_context: dict[str, Any] = {}
-            local_expr_context.update({"raw_pmc_df": self.raw_pmc_df})
+            local_expr_context["raw_pmc_df"] = self.raw_pmc_df
             local_expr_context.update(self.sys_vars)
             local_expr_context.update(self.empirical_peaks)
 
             # Add utility functions to local context
-            local_expr_context.update({
-                "to_min": to_min,
-                "to_max": to_max,
-                "to_avg": to_avg,
-                "to_median": to_median,
-                "to_std": to_std,
-                "to_int": to_int,
-                "to_sum": to_sum,
-                "to_round": to_round,
-                "to_quantile": to_quantile,
-                "to_mod": to_mod,
-                "to_concat": to_concat,
-                "to_noise_clamp": to_noise_clamp,
-            })
+            local_expr_context.update(_AGGREGATION_FUNCTIONS)
 
             eval_result = eval(
                 compile(expr, "<string>", "eval"),

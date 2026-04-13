@@ -20,6 +20,7 @@ from utils.metrics.noise_clamper import (
     get_noise_clamp_warnings,
     print_noise_clamp_summary,
 )
+from utils.metrics.pmc_data_cache import PmcDataCache
 from utils.utils_common import BUILD_IN_VARS, SUPPORTED_FIELD, calc_builtin_var
 
 
@@ -98,7 +99,7 @@ def create_sys_vars(sys_info: pd.Series) -> dict[str, int | float]:
 
 
 def calc_builtin_vars(
-    raw_pmc_df: pd.DataFrame | dict,
+    raw_pmc_df: PmcDataCache,
     config: dict,
     sys_vars: dict[str, int | float],
 ) -> dict[str, Optional[str | float | int]]:
@@ -166,26 +167,29 @@ def eval_metric(
     config: dict,
 ) -> None:
     """Execute the expr string for each metric in the df."""
+
+    cached_pmc = PmcDataCache(raw_pmc_df)
+
     # confirm no illogical counter values (only consider non-roofline runs)
     roof_only_run = sys_info.ip_blocks == "roofline"
     if (
         (not roof_only_run)
-        and hasattr(raw_pmc_df.get("pmc_perf", {}), "GRBM_GUI_ACTIVE")
-        and (raw_pmc_df["pmc_perf"]["GRBM_GUI_ACTIVE"] == 0).any()
+        and cached_pmc.has_column("pmc_perf", "GRBM_GUI_ACTIVE")
+        and (cached_pmc["pmc_perf"]["GRBM_GUI_ACTIVE"] == 0).any()
     ):
         console_warning("Detected GRBM_GUI_ACTIVE == 0")
         console_error("Halting execution for warning above.")
 
     sys_vars = create_sys_vars(sys_info)
     empirical_peaks = create_empirical_peaks_dict(empirical_peaks_df)
-    builtin_vars = calc_builtin_vars(raw_pmc_df, config, sys_vars)
+    builtin_vars = calc_builtin_vars(cached_pmc, config, sys_vars)
     sys_vars.update(builtin_vars)
 
     # Clear any previous noise clamp warnings before this analysis
     clear_noise_clamp_warnings()
 
     # Create metric evaluator
-    metric_evaluator = MetricEvaluator(raw_pmc_df, sys_vars, empirical_peaks)
+    metric_evaluator = MetricEvaluator(cached_pmc, sys_vars, empirical_peaks)
 
     exprs_to_eval = []
     debug_tracker = DebugRowTracker() if debug else None
@@ -209,7 +213,7 @@ def eval_metric(
                                     expr,
                                     row[expr],
                                     metric_evaluator,
-                                    raw_pmc_df,
+                                    cached_pmc,
                                     show_inputs=debug_tracker.should_show_inputs(
                                         df_id,
                                         row_id,
@@ -238,14 +242,14 @@ def eval_metric(
     print_noise_clamp_summary()
 
     # Check for metrics exceeding theoretical peak due to dual-issue
-    validate_dual_issue_metrics(dfs, dfs_type, sys_info, raw_pmc_df)
+    validate_dual_issue_metrics(dfs, dfs_type, sys_info, cached_pmc)
 
 
 def validate_dual_issue_metrics(
     dfs: dict,
     dfs_type: dict,
     sys_info: pd.Series,
-    raw_pmc_df: pd.DataFrame | dict,
+    raw_pmc_df: PmcDataCache,
 ) -> None:
     """
     Check if VALU Utilization or VALU FLOPs metrics exceed theoretical peak.
@@ -283,12 +287,11 @@ def validate_dual_issue_metrics(
                 if peak > 0 and value > peak:
                     dual_issue_confirmed = False
                     if gpu_arch == "gfx950":
-                        if isinstance(raw_pmc_df, dict) and "pmc_perf" in raw_pmc_df:
+                        if raw_pmc_df.has_column("pmc_perf", "SQ_ACTIVE_INST_VALU2"):
                             pmc_df = raw_pmc_df["pmc_perf"]
-                            if "SQ_ACTIVE_INST_VALU2" in pmc_df.columns:
-                                valu2_sum = pmc_df["SQ_ACTIVE_INST_VALU2"].sum()
-                                if valu2_sum > 0:
-                                    dual_issue_confirmed = True
+                            valu2_sum = pmc_df["SQ_ACTIVE_INST_VALU2"].sum()
+                            if valu2_sum > 0:
+                                dual_issue_confirmed = True
 
                     # Determine warning message based on metric type
                     faq_url = (
