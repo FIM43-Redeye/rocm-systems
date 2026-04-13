@@ -104,4 +104,14 @@ private:
     int original_device;
 };
 
+class ScopedHipHostRegister {
+public:
+    ScopedHipHostRegister(void *ptr, size_t size);
+    ~ScopedHipHostRegister();
+    void release();
+
+private:
+    void *ptr;
+};
+
 }
