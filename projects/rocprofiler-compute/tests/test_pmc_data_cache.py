@@ -10,6 +10,7 @@ from utils.metrics.pmc_data_cache import PmcDataCache
 
 
 def _make_pmc_dict() -> dict[str, pd.DataFrame]:
+    """Build a minimal PMC dictionary with a single 'pmc_perf' table."""
     return {
         "pmc_perf": pd.DataFrame({
             "SQ_WAVES": [100, 200, 150],
@@ -19,6 +20,7 @@ def _make_pmc_dict() -> dict[str, pd.DataFrame]:
 
 
 def _make_pmc_multiindex_df() -> pd.DataFrame:
+    """Build a MultiIndex DataFrame equivalent to the dict fixture."""
     sub_df = pd.DataFrame({
         "SQ_WAVES": [100, 200, 150],
         "GRBM_GUI_ACTIVE": [1000, 2000, 1500],
@@ -27,6 +29,7 @@ def _make_pmc_multiindex_df() -> pd.DataFrame:
 
 
 def test_pmc_data_cache_dict_input() -> None:
+    """Verify dict input yields a nested PmcDataCache with correct series values."""
     cache = PmcDataCache(_make_pmc_dict())
 
     nested = cache["pmc_perf"]
@@ -38,6 +41,7 @@ def test_pmc_data_cache_dict_input() -> None:
 
 
 def test_pmc_data_cache_dataframe_input() -> None:
+    """Verify MultiIndex DataFrame input behaves identically to dict input."""
     cache = PmcDataCache(_make_pmc_multiindex_df())
 
     nested = cache["pmc_perf"]
@@ -49,6 +53,7 @@ def test_pmc_data_cache_dataframe_input() -> None:
 
 
 def test_pmc_data_cache_level1_cache_hit() -> None:
+    """Repeated top-level lookups must return the same cached object."""
     cache = PmcDataCache(_make_pmc_dict())
 
     first = cache["pmc_perf"]
@@ -57,6 +62,7 @@ def test_pmc_data_cache_level1_cache_hit() -> None:
 
 
 def test_pmc_data_cache_level2_cache_hit() -> None:
+    """Repeated column lookups on a nested cache must return the same object."""
     cache = PmcDataCache(_make_pmc_dict())
 
     nested = cache["pmc_perf"]
@@ -66,6 +72,7 @@ def test_pmc_data_cache_level2_cache_hit() -> None:
 
 
 def test_pmc_data_cache_getattr_delegation() -> None:
+    """Attribute access delegates to the underlying DataFrame for columns and metadata."""
     cache = PmcDataCache(_make_pmc_dict())
     nested = cache["pmc_perf"]
 
@@ -75,6 +82,7 @@ def test_pmc_data_cache_getattr_delegation() -> None:
 
 
 def test_pmc_data_cache_contains_and_get() -> None:
+    """'in' and 'get' mirror dict semantics, returning None or a default for missing keys."""
     cache = PmcDataCache(_make_pmc_dict())
 
     assert "pmc_perf" in cache
@@ -86,27 +94,32 @@ def test_pmc_data_cache_contains_and_get() -> None:
 
 
 def test_pmc_data_cache_has_column_present() -> None:
+    """has_column returns True when both table and column exist."""
     cache = PmcDataCache(_make_pmc_dict())
     assert cache.has_column("pmc_perf", "SQ_WAVES") is True
 
 
 def test_pmc_data_cache_has_column_missing_table() -> None:
+    """has_column returns False when the table name does not exist."""
     cache = PmcDataCache(_make_pmc_dict())
     assert cache.has_column("nonexistent", "SQ_WAVES") is False
 
 
 def test_pmc_data_cache_has_column_missing_column() -> None:
+    """has_column returns False when the column name does not exist in the table."""
     cache = PmcDataCache(_make_pmc_dict())
     assert cache.has_column("pmc_perf", "NONEXISTENT") is False
 
 
 def test_pmc_data_cache_getitem_missing_key() -> None:
+    """Accessing a missing key via [] raises KeyError."""
     cache = PmcDataCache(_make_pmc_dict())
     with pytest.raises(KeyError):
         cache["nonexistent"]
 
 
 def test_pmc_data_cache_get_type_error() -> None:
+    """get() with a non-string key returns None or the supplied default."""
     cache = PmcDataCache(_make_pmc_dict())
     nested = cache["pmc_perf"]
     assert nested.get([1, 2]) is None
@@ -114,6 +127,7 @@ def test_pmc_data_cache_get_type_error() -> None:
 
 
 def test_pmc_data_cache_scalar_value_not_wrapped() -> None:
+    """Scalar values stored alongside DataFrames are returned unwrapped."""
     raw = {"version": 42, "pmc_perf": pd.DataFrame({"A": [1]})}
     cache = PmcDataCache(raw)
 
@@ -122,6 +136,7 @@ def test_pmc_data_cache_scalar_value_not_wrapped() -> None:
 
 
 def test_pmc_data_cache_with_metric_evaluator() -> None:
+    """PmcDataCache integrates with MetricEvaluator for expression evaluation."""
     cache = PmcDataCache(_make_pmc_dict())
 
     evaluator = MetricEvaluator(cache, {}, {})
