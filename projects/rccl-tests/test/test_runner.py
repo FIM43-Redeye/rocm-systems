@@ -11,6 +11,21 @@ BUILD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "buil
 DEFAULT_TIMEOUT = 300
 DEFAULT_HOSTFILE = None
 
+# Substrings that indicate a feature is not compiled into this RCCL build.
+# When a binary exits non-zero with one of these messages the test is skipped
+# rather than failed
+_UNSUPPORTED_FEATURE_PATTERNS = [
+    "This version of RCCL doesn't support ncclAllReduceWithBias",
+]
+
+
+def _check_unsupported(executable_name, stdout, stderr):
+    combined = stdout + stderr
+    for pattern in _UNSUPPORTED_FEATURE_PATTERNS:
+        if pattern in combined:
+            pytest.skip(f"{executable_name}: feature not available in this RCCL build "
+                        f"({pattern!r})")
+
 
 def run_rccl_perf(executable_name, args, env_overrides=None, timeout=None):
     """Run a rccl-tests perf binary and fail the test on error or timeout.
@@ -44,6 +59,7 @@ def run_rccl_perf(executable_name, args, env_overrides=None, timeout=None):
                     f"stdout: {stdout}\nstderr: {stderr}")
 
     if result.returncode != 0:
+        _check_unsupported(executable_name, result.stdout, result.stderr)
         pytest.fail(f"{executable_name} failed (rc={result.returncode})\n"
                     f"cmd: {' '.join(cmd)}\n"
                     f"stdout: {result.stdout}\nstderr: {result.stderr}")
@@ -86,6 +102,7 @@ def run_rccl_mpi(executable_name, nprocs, args, hostfile=None,
                     f"stdout: {stdout}\nstderr: {stderr}")
 
     if result.returncode != 0:
+        _check_unsupported(executable_name, result.stdout, result.stderr)
         pytest.fail(f"MPI {executable_name} failed (rc={result.returncode})\n"
                     f"cmd: {' '.join(cmd)}\n"
                     f"stdout: {result.stdout}\nstderr: {result.stderr}")
