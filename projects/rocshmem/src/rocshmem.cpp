@@ -512,6 +512,27 @@ static void setFilesLimit() {
   return ptr;
 }
 
+__host__ int rocshmem_buffer_register(void *addr, size_t length) {
+  BackendType type = get_backend_type();
+  (void)addr;
+  (void)length;
+
+  switch (type) {
+    case BackendType::GDA_BACKEND:
+      return ROCSHMEM_SUCCESS;
+    case BackendType::RO_BACKEND:
+    case BackendType::IPC_BACKEND:
+      return ROCSHMEM_SUCCESS;
+    default:
+      return ROCSHMEM_ERROR;
+  }
+}
+
+__host__ int rocshmem_buffer_unregister(void *addr) {
+  (void)addr;
+  return ROCSHMEM_SUCCESS;
+}
+
 [[maybe_unused]] __host__ void rocshmem_free(void *ptr) {
   VERIFY_BACKEND();
 
