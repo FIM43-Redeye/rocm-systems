@@ -8,15 +8,46 @@
 #
 # The toolchain is auto-loaded by CMakeLists.txt if no toolchain file is specified.
 
-# Detect ROCm installation. Priority: -DROCM_PATH > $ROCM_PATH env > /opt/rocm.
+# Detect ROCm installation.
+# Priority: -DROCM_PATH > $ROCM_PATH env > PATH (via amdclang++/hipcc) > /opt/rocm.
 # NOTE: ROCM_PATH is written to the CMake cache on first configure. If you change the
 # ROCm installation, pass -DROCM_PATH=<new_path> or wipe the build directory.
+
+# 1. -DROCM_PATH or $ROCM_PATH env var.
 if(NOT ROCM_PATH)
     if(DEFINED ENV{ROCM_PATH} AND NOT "$ENV{ROCM_PATH}" STREQUAL "")
         set(ROCM_PATH "$ENV{ROCM_PATH}" CACHE PATH "Path to ROCm installation.")
-    else()
-        set(ROCM_PATH "/opt/rocm" CACHE PATH "Path to ROCm installation.")
     endif()
+endif()
+
+# 2. Derive from PATH: find amdclang++ or clang++ and walk up to the ROCm root.
+#    Handles both ${ROCM_PATH}/bin/ and ${ROCM_PATH}/llvm/bin/ layouts.
+if(NOT ROCM_PATH)
+    find_program(_rocm_bin_hint NAMES amdclang++ clang++)
+    if(_rocm_bin_hint)
+        get_filename_component(_bin_dir "${_rocm_bin_hint}" DIRECTORY)
+        get_filename_component(_parent  "${_bin_dir}"       DIRECTORY)
+        if(EXISTS "${_parent}/lib/libamdhip64.so")
+            set(ROCM_PATH "${_parent}" CACHE PATH "Path to ROCm installation (auto-detected from PATH).")
+            message(STATUS "ROCM_PATH auto-detected from PATH: ${ROCM_PATH}")
+        else()
+            # llvm/bin layout: go one level higher
+            get_filename_component(_grandparent "${_parent}" DIRECTORY)
+            if(EXISTS "${_grandparent}/lib/libamdhip64.so")
+                set(ROCM_PATH "${_grandparent}" CACHE PATH "Path to ROCm installation (auto-detected from PATH).")
+                message(STATUS "ROCM_PATH auto-detected from PATH: ${ROCM_PATH}")
+            endif()
+        endif()
+    endif()
+    unset(_rocm_bin_hint CACHE)
+    unset(_bin_dir)
+    unset(_parent)
+    unset(_grandparent)
+endif()
+
+# 3. Fall back to /opt/rocm.
+if(NOT ROCM_PATH)
+    set(ROCM_PATH "/opt/rocm" CACHE PATH "Path to ROCm installation.")
 endif()
 
 if(NOT EXISTS "${ROCM_PATH}")
