@@ -38,9 +38,7 @@ REGRESSION_GPU_COUNTS = _regression_gpu_counts(NGPUS)
                          ids=lambda r: f"{r[0]}-{r[1]}" if isinstance(r, tuple) else r)
 @pytest.mark.parametrize("dtype", DATATYPES, ids=lambda d: d)
 @pytest.mark.parametrize("collective", COLLECTIVES, ids=lambda c: c.name)
-def test_regression_single(collective, dtype, min_b, max_b, n_gpus, request):
-    if collective.arch_gate:
-        request.node._arch_gate = collective.arch_gate
+def test_regression_single(collective, dtype, min_b, max_b, n_gpus):
     args = ["-t", str(n_gpus), "-g", "1",
             "-b", min_b, "-e", max_b, "-f", "2", "-d", dtype]
     if collective.has_ops:
@@ -57,9 +55,7 @@ def test_regression_single(collective, dtype, min_b, max_b, n_gpus, request):
                          ids=lambda r: f"{r[0]}-{r[1]}" if isinstance(r, tuple) else r)
 @pytest.mark.parametrize("dtype", DATATYPES, ids=lambda d: d)
 @pytest.mark.parametrize("collective", COLLECTIVES, ids=lambda c: c.name)
-def test_regression_mpi(collective, dtype, min_b, max_b, n_gpus, request):
-    if collective.arch_gate:
-        request.node._arch_gate = collective.arch_gate
+def test_regression_mpi(collective, dtype, min_b, max_b, n_gpus):
     args = ["-t", "1", "-g", "1",
             "-b", min_b, "-e", max_b, "-f", "2", "-d", dtype]
     if collective.has_ops:

@@ -8,10 +8,8 @@ from test_runner import run_rccl_perf, run_rccl_mpi
 
 @pytest.mark.parametrize("msg_size", MSG_SIZES, ids=lambda s: s)
 @pytest.mark.parametrize("collective", COLLECTIVES, ids=lambda c: c.name)
-def test_lifecycle_single(collective, msg_size, gpu_count, request):
+def test_lifecycle_single(collective, msg_size, gpu_count):
     """Each binary launches and exits cleanly. Arch-gated where needed."""
-    if collective.arch_gate:
-        request.node._arch_gate = collective.arch_gate
     args = ["-t", str(gpu_count), "-g", "1",
             "-b", msg_size, "-e", msg_size, "-d", "float"]
     if collective.has_ops:
@@ -24,10 +22,8 @@ def test_lifecycle_single(collective, msg_size, gpu_count, request):
 @pytest.mark.mpi
 @pytest.mark.parametrize("msg_size", MSG_SIZES, ids=lambda s: s)
 @pytest.mark.parametrize("collective", COLLECTIVES, ids=lambda c: c.name)
-def test_lifecycle_mpi(collective, msg_size, gpu_count, request):
+def test_lifecycle_mpi(collective, msg_size, gpu_count):
     """MPI launch path for each binary."""
-    if collective.arch_gate:
-        request.node._arch_gate = collective.arch_gate
     args = ["-t", "1", "-g", "1",
             "-b", msg_size, "-e", msg_size, "-d", "float"]
     if collective.has_ops:

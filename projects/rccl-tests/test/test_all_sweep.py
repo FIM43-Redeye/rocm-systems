@@ -12,10 +12,8 @@ from test_runner import run_rccl_perf
 
 @pytest.mark.parametrize("msg_size", MSG_SIZES, ids=lambda s: s)
 @pytest.mark.parametrize("collective", COLLECTIVES_WITH_OPS, ids=lambda c: c.name)
-def test_ops_all(collective, msg_size, gpu_count, request):
+def test_ops_all(collective, msg_size, gpu_count):
     """All reduction ops in a single sweep (-o all)."""
-    if collective.arch_gate:
-        request.node._arch_gate = collective.arch_gate
     run_rccl_perf(collective.executable, [
         "-t", str(gpu_count), "-g", "1",
         "-b", msg_size, "-e", msg_size, "-o", "all", "-d", "float"])
@@ -23,10 +21,8 @@ def test_ops_all(collective, msg_size, gpu_count, request):
 
 @pytest.mark.parametrize("msg_size", MSG_SIZES, ids=lambda s: s)
 @pytest.mark.parametrize("collective", COLLECTIVES, ids=lambda c: c.name)
-def test_dtypes_all(collective, msg_size, gpu_count, request):
+def test_dtypes_all(collective, msg_size, gpu_count):
     """All datatypes in a single sweep (-d all)."""
-    if collective.arch_gate:
-        request.node._arch_gate = collective.arch_gate
     args = ["-t", str(gpu_count), "-g", "1",
             "-b", msg_size, "-e", msg_size, "-d", "all"]
     if collective.has_ops:
@@ -38,10 +34,8 @@ def test_dtypes_all(collective, msg_size, gpu_count, request):
 
 @pytest.mark.parametrize("msg_size", MSG_SIZES, ids=lambda s: s)
 @pytest.mark.parametrize("collective", COLLECTIVES_WITH_ROOT, ids=lambda c: c.name)
-def test_root_all(collective, msg_size, gpu_count, request):
+def test_root_all(collective, msg_size, gpu_count):
     """Rotate through all root ranks (-r all)."""
-    if collective.arch_gate:
-        request.node._arch_gate = collective.arch_gate
     args = ["-t", str(gpu_count), "-g", "1",
             "-b", msg_size, "-e", msg_size, "-r", "all", "-d", "float"]
     if collective.has_ops:

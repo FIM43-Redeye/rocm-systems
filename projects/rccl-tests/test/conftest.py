@@ -261,13 +261,23 @@ def gpu_count() -> int:
 def pytest_collection_modifyitems(config, items):
     """Apply arch markers and auto-skip tests on non-matching hardware.
 
-    For each item with _arch_gate set:
+    Detects arch-gated tests by inspecting parametrize callspec values for
+    Collective objects that carry an arch_gate tuple. This runs at collection
+    time, before any test body executes, so it correctly skips items before
+    they are scheduled to run.
+
+    For each gated item:
       - Applies the corresponding registered marker (e.g. gfx942_gfx950) so
         -m gfx942_gfx950 can be used to select or exclude these tests.
       - Adds a skip marker if the detected GPU arch is not in the gate set.
     """
     for item in items:
-        arch_gate = getattr(item, "_arch_gate", None)
+        arch_gate = None
+        if hasattr(item, "callspec"):
+            for val in item.callspec.params.values():
+                if hasattr(val, "arch_gate") and val.arch_gate:
+                    arch_gate = val.arch_gate
+                    break
         if not arch_gate:
             continue
         marker_name = "_".join(arch_gate)  # ("gfx942", "gfx950") -> "gfx942_gfx950"

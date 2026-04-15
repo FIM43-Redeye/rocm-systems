@@ -121,6 +121,11 @@ python3 -m pytest -m gfx942_gfx950                # arch-gated tests only
 python3 -m pytest -m "not gfx942_gfx950"          # skip arch-gated tests
 ```
 
+Arch-gated tests are skipped at **collection time** on non-matching hardware, so the
+binary is never launched. On matching hardware (gfx942/gfx950), if the RCCL build
+predates the feature (e.g. an older ROCm stack without `ncclAllReduceWithBias`), the
+test is skipped at **runtime** with a clear reason rather than failing.
+
 ## GPU Detection
 
 GPU count is detected automatically at session start:
