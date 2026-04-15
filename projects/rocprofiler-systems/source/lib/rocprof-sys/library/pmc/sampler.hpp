@@ -7,6 +7,7 @@
 #include "core/state.hpp"
 
 #include <cstdint>
+#include <vector>
 
 namespace rocprofsys
 {
@@ -41,6 +42,23 @@ postfork_child_cleanup();
 
 void
 postfork_parent_reinit();
+
+/**
+ * @brief Register an SDK PMC device counting source.
+ *
+ * Thread-safe. Creates the SDK PMC provider and collector internally,
+ * then adds it to the active sampling loop. Called by tool_init() when
+ * the device_counting_service context is ready.
+ *
+ * @param context The rocprofiler context for device_counting_service.
+ * @param agent_ids Agent handle values (one per GPU).
+ * @param profile_configs Matching profile config handle values.
+ * @param device_indices Matching logical device indices.
+ */
+void
+register_sdk_pmc_source(uint64_t context_handle, const std::vector<uint64_t>& agent_ids,
+                        const std::vector<uint64_t>& profile_configs,
+                        const std::vector<size_t>&   device_indices);
 
 }  // namespace pmc
 }  // namespace rocprofsys
