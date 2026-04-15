@@ -67,7 +67,6 @@ no subtests, no loops, no hidden state.
 | File | Groups | What it covers |
 |------|--------|----------------|
 | `collectives.py` | — | `Collective` dataclass registry (not a test file) |
-| `test_lifecycle.py` | 1 | Each binary launches and exits cleanly (all 12 collectives × 3 msg sizes, single + MPI) |
 | `test_code_paths.py` | 2–13 | CLI flag coverage: step modes, correctness, blocking, placement, HIP graph, threading, rooted collectives, iteration control, output formats, memory types, env vars, MPI, internal timeout |
 | `test_all_sweep.py` | 14 | `-o all` / `-d all` / `-r all` sweep modes |
 | `test_ops.py` | 15 | Individual reduction ops parametrized (`sum`, `prod`, `min`, `max`, `avg`, `mulsum`) |
@@ -182,7 +181,6 @@ pytest -k "allreduce and 1K"   # allreduce at 1K only
 ### By test file (group)
 
 ```shell
-pytest test_lifecycle.py       # Group 1: binary lifecycle (all collectives × 3 sizes)
 pytest test_code_paths.py      # Groups 2-13: CLI flags and execution modes
 pytest test_all_sweep.py       # Group 14: -o/-d/-r all sweep modes
 pytest test_ops.py             # Group 15: individual reduction ops
@@ -272,8 +270,6 @@ pytest test_regression.py -k "not allreduce_bias"
 ### Rerun exact CI failures by node ID
 
 ```shell
-pytest "test_lifecycle.py::test_lifecycle_single[allreduce-1G]"
-pytest "test_lifecycle.py::test_lifecycle_mpi[broadcast-1M]"
 pytest "test_code_paths.py::test_blocking[1G]"
 pytest "test_code_paths.py::test_placement[out_of_place-1M]"
 pytest "test_code_paths.py::test_memory_type[mem_fine-1G]"

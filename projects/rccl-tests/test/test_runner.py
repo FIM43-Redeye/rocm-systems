@@ -86,7 +86,7 @@ def run_rccl_mpi(executable_name, nprocs, args, hostfile=None,
     cmd = ["mpirun", "-np", str(nprocs)]
     if hostfile:
         cmd += ["-hostfile", hostfile]
-    cmd += [executable, "-p", "1"] + args
+    cmd += [executable] + args
 
     env = os.environ.copy()
     if env_overrides:

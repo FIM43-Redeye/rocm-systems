@@ -35,7 +35,8 @@ COLLECTIVES_WITH_OPS  = [c for c in COLLECTIVES if c.has_ops]
 COLLECTIVES_WITH_ROOT = [c for c in COLLECTIVES if c.has_root]
 COLLECTIVE_IDS        = [c.name for c in COLLECTIVES]
 
-# Representative message sizes for lifecycle / smoke tests
+# Multi-size sweep used only where size-dependent algorithm selection matters
+# (test_ops.py, test_regression.py).
 MSG_SIZES = ["1K", "1M", "1G"]
 
 # Full op and datatype lists (used by test_ops.py and test_dtypes.py)

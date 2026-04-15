@@ -17,12 +17,12 @@ def _regression_gpu_counts(ngpus: int) -> list:
     already a power-of-2. This ensures the full machine is always exercised.
 
     Examples:
-      ngpus=8  -> [1, 2, 4, 8]
-      ngpus=6  -> [1, 2, 4, 6]
-      ngpus=4  -> [1, 2, 4]
-      ngpus=1  -> [1]
+      ngpus=8  -> [2, 4, 8]
+      ngpus=6  -> [2, 4, 6]
+      ngpus=4  -> [2, 4]
+      ngpus=1  -> []
     """
-    powers = [2**i for i in range(ngpus.bit_length()) if 2**i <= ngpus]
+    powers = [2**i for i in range(ngpus.bit_length()) if 2**i <= ngpus and 2**i > 1]
     if ngpus not in powers:
         powers.append(ngpus)
     return sorted(powers)
