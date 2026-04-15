@@ -1740,8 +1740,9 @@ def test_metric_evaluation_no_valid_data():
     import numpy as np
 
     from utils.metrics.metric_evaluator import MetricEvaluator
+    from utils.metrics.pmc_data_cache import PmcDataCache
 
-    metric_evaluator = MetricEvaluator({}, {}, {})
+    metric_evaluator = MetricEvaluator(PmcDataCache({}), {}, {})
     with patch("builtins.eval") as mock_eval, patch("builtins.compile"):
         # Test when eval returns None
         mock_eval.return_value = None

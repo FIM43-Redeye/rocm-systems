@@ -188,7 +188,7 @@ def debug_row_tracker(
         expr: The original metric expression (for display purposes).
         row_expr: The fully substituted expression to evaluate.
         metric_evaluator: The MetricEvaluator instance for expression evaluation.
-        raw_pmc_df: Raw PMC data (DataFrame, dict, or PmcDataCache).
+        raw_pmc_df: PmcDataCache wrapper around raw PMC data.
         show_inputs: Whether to show input variable values (default: True).
     """
     print("~" * 40 + "\nExpression:")
