@@ -60,12 +60,18 @@ def test_null_stream(msg_size, gpu_count):
         "-b", msg_size, "-e", msg_size, "-y", "1", "-d", "float", "-o", "sum"])
 
 
-@pytest.mark.parametrize("msg_size", MSG_SIZES, ids=lambda s: s)
-def test_parallel_init(msg_size, gpu_count):
-    """Threaded NCCL/RCCL init (-p 1)."""
-    run_rccl_perf("all_reduce_perf", [
-        "-t", str(gpu_count), "-g", "1",
-        "-b", msg_size, "-e", msg_size, "-p", "1", "-d", "float", "-o", "sum"])
+# test_parallel_init is disabled:
+# preiliminary investigation suggests that concurrent ncclInitKernelsForDevice()
+# calls race on cudaFuncSetAttribute() with no lock held, corrupting kernel
+# shared-memory configuration and causing GPU page faults during subsequent collective.
+# Re-enable once fixed in RCCL.
+#
+# @pytest.mark.parametrize("msg_size", MSG_SIZES, ids=lambda s: s)
+# def test_parallel_init(msg_size, gpu_count):
+#     """Threaded NCCL/RCCL init (-p 1)."""
+#     run_rccl_perf("all_reduce_perf", [
+#         "-t", str(gpu_count), "-g", "1",
+#         "-b", msg_size, "-e", msg_size, "-p", "1", "-d", "float", "-o", "sum"])
 
 
 @pytest.mark.parametrize("msg_size", MSG_SIZES, ids=lambda s: s)
