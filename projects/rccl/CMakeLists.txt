@@ -5,6 +5,9 @@
 #==================================================================================================
 cmake_minimum_required(VERSION 3.16)
 
+if(NOT DEFINED ROCM_SYSTEMS_ROOT)
+  set(ROCM_SYSTEMS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+endif()
 # Determine version from makefiles/version.mk (NCCL-style version variables)
 #==================================================================================================
 file(READ makefiles/version.mk version_mk_text)

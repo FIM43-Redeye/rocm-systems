@@ -302,12 +302,13 @@ if(BUILD_TESTS)
   endforeach()
 
   # Shared ROCm Libraries CTest categories (see shared/ctest/README.md)
-  if(ROCM_LIBRARIES_ROOT AND EXISTS "${ROCM_LIBRARIES_ROOT}/shared/ctest/TestCategories.cmake")
+  if(ROCM_SYSTEMS_ROOT AND EXISTS "${ROCM_SYSTEMS_ROOT}/shared/ctest/TestCategories.cmake")
     # Currently these files only exist in rocm-libraries, without that repo this will fail.
-    # get_filename_component(ROCM_LIBRARIES_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
-    include("${ROCM_LIBRARIES_ROOT}/shared/ctest/TestCategories.cmake")
+    # get_filename_component(ROCM_SYSTEMS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
+    include("${ROCM_SYSTEMS_ROOT}/shared/ctest/TestCategories.cmake")
     enable_testing()
 
+    message(STATUS "Applying test categories for rccl-UnitTests")
     apply_test_category_labels(
         rccl-UnitTests
         "${CMAKE_CURRENT_SOURCE_DIR}/test_categories.yaml"
@@ -315,6 +316,7 @@ if(BUILD_TESTS)
     )
 
     if(ROCM_VERSION VERSION_GREATER_EQUAL "60400")
+        message(STATUS "Applying test categories for rccl-UnitTestsFixtures")
         apply_test_category_labels(
         rccl-UnitTestsFixtures
         "${CMAKE_CURRENT_SOURCE_DIR}/test_categories_fixtures.yaml"
@@ -323,11 +325,13 @@ if(BUILD_TESTS)
     endif()
 
     if(ROCM_VERSION VERSION_GREATER_EQUAL "60400" AND CMAKE_BUILD_TYPE MATCHES "Debug")
+        message(STATUS "Applying test categories for rccl-UnitTestsFixturesDebug")
         apply_test_category_labels(
         rccl-UnitTestsFixturesDebug
         "${CMAKE_CURRENT_SOURCE_DIR}/test_categories_fixtures_debug.yaml"
         "${PROJECT_BINARY_DIR}"
         )
+        message(STATUS "Applying test categories for rccl-UnitTestsAltRsmi")
         apply_test_category_labels(
         rccl-UnitTestsAltRsmi
         "${CMAKE_CURRENT_SOURCE_DIR}/test_categories_altrsmi.yaml"
@@ -336,6 +340,7 @@ if(BUILD_TESTS)
     endif()
 
     if(ENABLE_MPI_TESTS)
+        message(STATUS "Applying test categories for rccl-UnitTestsMPI")
         apply_test_category_labels(
         rccl-UnitTestsMPI
         "${CMAKE_CURRENT_SOURCE_DIR}/test_categories_mpi.yaml"
