@@ -4,27 +4,21 @@ import select
 import sys
 import tempfile
 import unittest.mock
-from subprocess import Popen, PIPE, TimeoutExpired
+from subprocess import CalledProcessError, PIPE, Popen, TimeoutExpired, run
 import time
 import hashlib
+import logging
 import shutil
-from subprocess import Popen, PIPE, CalledProcessError, run
 import signal
 
 DEFAULT_TIMEOUT = 60
-
-def test_func(name):
-    """Decorator to annotate a test function with a descriptive name."""
-    def decorator(func):
-        func.testname = name
-        return func
-    return decorator
 
 
 def run_and_communicate(
     test_name,
     args="0",
     debug_agent_options="",
+    timeout=DEFAULT_TIMEOUT,
 ):
     # Prepare command
     program = "./rocm-debug-agent-test"
@@ -44,21 +38,21 @@ def run_and_communicate(
         p = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
         def handle_failure(reason):
-            print(f"Test {test_name} FAIL: {reason}")
+            _log = logging.getLogger("rocm-debug-agent-test")
+            _log.info("Test %s FAIL: %s", test_name, reason)
             p.kill()
             try:
                 # Kill first, then communicate to flush any remaining output
                 output, err = p.communicate()
             except Exception:
                 output, err = b"", b""
-            print("rocm-debug-agent test print out.")
-            print(output.decode("utf-8"))
-            print("rocm-debug-agent test error message.")
-            print(err.decode("utf-8"))
+            combined = (output.decode("utf-8").rstrip() + "\n" + err.decode("utf-8").rstrip()).strip()
+            if combined:
+                _log.info("output:\n%s", combined)
             return None, None, False
 
         try:
-            output, err = p.communicate(timeout=DEFAULT_TIMEOUT)
+            output, err = p.communicate(timeout=timeout)
         except TimeoutExpired:
             return handle_failure("Timeout reached during communicate.")
         except Exception:
@@ -66,21 +60,20 @@ def run_and_communicate(
 
         out_str = output.decode("utf-8")
         err_str = err.decode("utf-8")
+        _log = logging.getLogger("rocm-debug-agent-test")
+        combined = (out_str.rstrip() + "\n" + err_str.rstrip()).strip()
+        if combined:
+            _log.info("output:\n%s", combined)
         return out_str, err_str, True
 
 
 def check_errors(check_list, out_str, err_str):
+    _log = logging.getLogger("rocm-debug-agent-test")
     all_strings_found = True
     for i, check_str in enumerate(check_list, start=1):
         if not (check_str.search(err_str)):
             all_strings_found = False
-            print(f"Pattern {i}/{len(check_list)} NOT found: {check_str.pattern}")
-
-    if not all_strings_found:
-        print("rocm-debug-agent test print out.")
-        print(out_str)
-        print("rocm-debug-agent test error message.")
-        print(err_str)
+            _log.info("Pattern %d/%d NOT found: %s", i, len(check_list), check_str.pattern)
 
     return all_strings_found
 
@@ -115,6 +108,17 @@ else:
         os.environ["LD_LIBRARY_PATH"] += ":" + agent_library_directory
     os.environ["HSA_TOOLS_LIB"] = "librocm-debug-agent.so.2"
     os.chdir(test_binary_directory)
+
+    # Set up file-only logging for diagnostic output (stdout/stderr dumps).
+    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "run-test.log")
+    log = logging.getLogger("rocm-debug-agent-test")
+    log.setLevel(logging.DEBUG)
+    _fh = logging.FileHandler(log_path, mode="w")
+    _fh.setFormatter(logging.Formatter("%(message)s"))
+    log.addHandler(_fh)
+    log.propagate = False
+    print(f"Diagnostic log: {log_path}")
+
     # pre test to check if librocm-debug-agent.so.2 can be found
     out_str, err_str, success = run_and_communicate(
         test_name="0: default", args="0"
@@ -129,9 +133,7 @@ else:
         sys.exit(1)
 
 
-# test 0
-@test_func("Default (no faults)")
-def check_test_0():
+def test_baseline():
     out_str, err_str, success = run_and_communicate(
         test_name="0: default", args="0"
     )
@@ -139,80 +141,15 @@ def check_test_0():
     if not success:
         return False
 
-    # Only print but not throw for err_str, since debug build has print
-    # out could be ignored
+    # Only log but not throw for err_str, since debug build has print
+    # out that could be ignored
     if filter_warnings(err_str):
-        print(err_str)
+        logging.getLogger("rocm-debug-agent-test").info("output:\n%s", err_str)
 
     return True
 
 
-# test 1
-@test_func("Assert trap (debug trap)")
-def check_test_1():
-    check_list = [
-        re.compile(s)
-        for s in [
-            "HSA_STATUS_ERROR_EXCEPTION: An HSAIL operation resulted in a hardware exception\\.",
-            "\\(stopped, reason: ASSERT_TRAP\\)",
-            "exec: (00000000)?00000001",
-            #                  'status: 00012061',
-            #                  'trapsts: 20000000',
-            #                  'm0: 00000000',
-            "s0:",
-            "v0:",
-            "0x0000: 22222222 11111111",  # First uint64_t in LDS is '1111111122222222'
-            "Disassembly for function vector_add_assert_trap\\(int\\*, int\\*, int\\*\\)",
-            #                  'vector_add_assert_trap.cpp:', # Debug info may not be available on some older distributions
-            #                  '53          __builtin_trap ();', # Source files not always available (When install tests from package)
-            #                  's_trap 2'
-        ]
-    ]
-
-    out_str, err_str, success = run_and_communicate(
-        test_name="1: debug_trap", args="1"
-    )
-
-    if success:
-        return check_errors(check_list, out_str, err_str)
-    else:
-        return False
-
-
-# test 2
-@test_func("Memory violation")
-def check_test_2():
-    check_list = [
-        re.compile(s)
-        for s in [
-            #                  'System event \(HSA_AMD_GPU_MEMORY_FAULT_EVENT\)',
-            #                  'Faulting page: 0x',
-            "\\(stopped, reason: MEMORY_VIOLATION\\)",
-            "exec: (ffffffff)?ffffffff",
-            #                  'status: 00012461',
-            #                  'trapsts: 30000100',
-            #                  'm0: 00001008',
-            "s0:",
-            "v0:",
-            "0x0000: 22222222 11111111",  # First uint64_t in LDS is '1111111122222222'
-            "Disassembly for function vector_add_memory_fault\\(int\\*, int\\*, int\\*\\)",
-            #                  'vector_add_memory_fault.cpp:', Debug info may not be available on some older distributions
-            #                  'global_store_dword' # Without precise memory, we can't guarantee that
-        ]
-    ]
-
-    out_str, err_str, success = run_and_communicate(
-        test_name="2: memory violation", args="2"
-    )
-    if success:
-        return check_errors(check_list, out_str, err_str)
-    else:
-        return False
-
-
-# test 3: snapshot code object on load
-@test_func("Snapshot code object on load")
-def check_test_3():
+def test_snapshot_code_object():
     out_str, err_str, success = run_and_communicate(
         test_name="3: snapshot code object on load", args="3"
     )
@@ -238,10 +175,8 @@ def check_test_3():
         found_error = True
 
     if found_error:
-        print("rocm-debug-agent test print out.")
-        print(out_str)
-        print("rocm-debug-agent test error message.")
-        print(err_str)
+        _log = logging.getLogger("rocm-debug-agent-test")
+        _log.info("Snapshot code object test failed: code_object error or missing disassembly")
 
     return not found_error
 
@@ -264,15 +199,12 @@ def _has_symbol_with_readelf(path: str, symbol: str) -> bool:
         return False
 
 
-# test 4: save code object on disk
-@test_func("Save code objects to disk")
-def check_test_4():
+def test_save_code_objects():
     if not shutil.which("readelf"):
-        print(
-            "Tool readelf not found, could not run test 4, but don't know if"
-            " that is an error."
+        logging.getLogger("rocm-debug-agent-test").info(
+            "Tool readelf not found, skipping test_save_code_objects"
         )
-        unsupported_tests.append(check_test_4)
+        unsupported_tests.append(test_save_code_objects)
         return True
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -290,7 +222,9 @@ def check_test_4():
             ) from e
 
         if len(code_objects) == 0:
-            print(f"No code object found in {tmpdir}")
+            logging.getLogger("rocm-debug-agent-test").info(
+                "No code object found in %s", tmpdir
+            )
             return False
 
         # Filter to files that contain the target symbol in their
@@ -306,18 +240,18 @@ def check_test_4():
             if _has_symbol_with_readelf(path, symbol_to_find):
                 with_symbol.append(path)
 
+        _log = logging.getLogger("rocm-debug-agent-test")
         if len(with_symbol) != 2:
-            print(
-                f"Expected exactly 2 code objects containing symbol"
-                f" '{symbol_to_find}', found {len(with_symbol)}"
+            _log.info(
+                "Expected exactly 2 code objects containing symbol"
+                " '%s', found %d", symbol_to_find, len(with_symbol)
             )
-            print(
-                "All saved files:\n\t{}".format("\n\t".join(code_objects))
+            _log.info(
+                "All saved files:\n\t%s", "\n\t".join(code_objects)
             )
-            print(
-                "Files with symbol:\n\t{}".format(
-                    "\n\t".join(os.path.basename(p) for p in with_symbol)
-                )
+            _log.info(
+                "Files with symbol:\n\t%s",
+                "\n\t".join(os.path.basename(p) for p in with_symbol)
             )
             return False
 
@@ -325,20 +259,18 @@ def check_test_4():
         checksums = [(_file_checksum(p), p) for p in with_symbol]
         unique_sums = {cs for cs, _ in checksums}
         if len(unique_sums) != 1:
-            print(
+            _log.info(
                 "The two code objects containing the symbol do not"
                 " have identical contents"
             )
             for cs, pth in checksums:
-                print(f"{os.path.basename(pth)} -> {cs}")
+                _log.info("%s -> %s", os.path.basename(pth), cs)
             return False
 
         return True
 
 
-# test 5
-@test_func("Output redirection (-o)")
-def check_test_5():
+def test_output_redirection():
     check_list = [
         re.compile(s)
         for s in [
@@ -367,88 +299,19 @@ def check_test_5():
                 log_contents = f.read()
 
             all_output_string_found = True
+            _log = logging.getLogger("rocm-debug-agent-test")
             for check_str in check_list:
                 if not check_str.search(log_contents):
                     all_output_string_found = False
-                    print(f'"{check_str}" Not Found in output_log.txt.')
+                    _log.info('"%s" Not Found in output_log.txt.', check_str.pattern)
 
             if not all_output_string_found:
-                print("Full output log contents:")
-                print(log_contents)
+                _log.info("Full output log contents:\n%s", log_contents)
 
             return all_output_string_found
 
 
-# test 6
-@test_func("Help (-h)")
-def check_test_6():
-    check_list = [
-        re.compile(s)
-        for s in [
-            "ROCdebug-agent usage",
-        ]
-    ]
-
-    out_str, err_str, success = run_and_communicate(
-        test_name="6: help", args="0", debug_agent_options="-h"
-    )
-
-    if success:
-        return check_errors(check_list, out_str, err_str)
-    else:
-        return False
-
-
-# test 7
-@test_func("Log level (-l info)")
-def check_test_7():
-    check_list = [
-        re.compile(s)
-        for s in [
-            "rocm-dbgapi",
-        ]
-    ]
-
-    out_str, err_str, success = run_and_communicate(
-        test_name="7: -l option", args="1", debug_agent_options="-l info"
-    )
-
-    if success:
-        return check_errors(check_list, out_str, err_str)
-    else:
-        return False
-
-
-# test 8
-@test_func("All waves (--all)")
-def check_test_8():
-    check_list = [
-        re.compile(s)
-        for s in [
-            "wave_1",
-            "wave_2",
-            "wave_3",
-            "wave_4",
-            "wave_5",
-            "wave_6",
-            "wave_7",
-            "wave_8",
-        ]
-    ]
-
-    out_str, err_str, success = run_and_communicate(
-        test_name="8: --all option", args="5", debug_agent_options="--all"
-    )
-
-    if success:
-        return check_errors(check_list, out_str, err_str)
-    else:
-        return False
-
-
-# test 9 SIGQUIT
-@test_func("SIGQUIT signal handling")
-def check_test_9():
+def test_sigquit():
     check_list = [
         re.compile(s)
         for s in [
@@ -517,58 +380,53 @@ def check_test_9():
     try:
         output, err = p.communicate(timeout=3)
     except TimeoutExpired:
-        print("Timeout reached during final communicate.")
+        logging.getLogger("rocm-debug-agent-test").info(
+            "Timeout reached during final communicate."
+        )
         output, err = b"", b""
     except Exception:
-        print("Unexpected exception during final communicate.")
+        logging.getLogger("rocm-debug-agent-test").info(
+            "Unexpected exception during final communicate."
+        )
         output, err = b"", b""
 
     out_str = "".join(consumed_out) + output.decode("utf-8")
     err_str = "".join(consumed_err) + err.decode("utf-8")
+    _log = logging.getLogger("rocm-debug-agent-test")
+
+    combined = (out_str.rstrip() + "\n" + err_str.rstrip()).strip()
 
     if not kernel_started:
-        print("Timeout waiting for 'Kernel started'. Terminating process.")
-        print("rocm-debug-agent test print out.")
-        print(out_str)
-        print("rocm-debug-agent test error message.")
-        print(err_str)
+        _log.info("Timeout waiting for 'Kernel started'. Terminating process.")
+        if combined:
+            _log.info("output:\n%s", combined)
         return False
 
     if timeout_seen or not wave_seen:
         if timeout_seen:
-            print("Timeout reached. Exiting. Failing test.")
+            _log.info("Timeout reached. Exiting. Failing test.")
         else:
-            print(
-                (
-                    "Loop timed out without receiving expected message. "
-                    "Failing test."
-                )
+            _log.info(
+                "Loop timed out without receiving expected message. "
+                "Failing test."
             )
-        print("rocm-debug-agent test print out.")
-        print(out_str)
-        print("rocm-debug-agent test error message.")
-        print(err_str)
+        if combined:
+            _log.info("output:\n%s", combined)
         return False
 
     all_output_string_found = True
     for check_str in check_list:
         if not (check_str.search(err_str)):
             all_output_string_found = False
-            print('"', check_str, '" Not Found in dump.')
+            _log.info('"%s" Not Found in dump.', check_str.pattern)
 
-    if not all_output_string_found:
-        print("rocm-debug-agent test print out.")
-        print(out_str)
-        print("rocm-debug-agent test error message.")
-        print(err_str)
+    if not all_output_string_found and combined:
+        _log.info("output:\n%s", combined)
 
     return all_output_string_found
 
 
-# test 10 check for difference in outputs for same program compiled with and
-# without -ggdb flag
-@test_func("Debug info comparison")
-def check_test_10():
+def test_debug_info_comparison():
     check_list = [
         re.compile(re.escape(s))
         for s in ["c[gid] = a[gid] + b[gid] + (lds_check[0] >> 32);", "if (gid == 0)"]
@@ -597,8 +455,7 @@ def check_test_10():
     return found_in_debug and not found_in_no_debug
 
 
-@test_func("Eager vs lazy code object save")
-def check_eager_code_object_save():
+def test_eager_code_object_save():
     with tempfile.TemporaryDirectory() as tmpdir:
         run_and_communicate(
             test_name="eager code object save: no event, no code object",
@@ -607,7 +464,9 @@ def check_eager_code_object_save():
         )
 
         if len(os.listdir(tmpdir)) != 0:
-            print("Code object saved, while code object saving should have been lazy")
+            logging.getLogger("rocm-debug-agent-test").info(
+                "Code object saved, while code object saving should have been lazy"
+            )
             return False
 
         run_and_communicate(
@@ -617,13 +476,12 @@ def check_eager_code_object_save():
         )
 
         if len(os.listdir(tmpdir)) == 0:
-            print("Missing saved code objects")
+            logging.getLogger("rocm-debug-agent-test").info("Missing saved code objects")
             return False
     return True
 
 
-@test_func("Lazy/load-all incompatibility")
-def check_lazy_loading_and_eager_incompatible():
+def test_lazy_loading_and_eager_incompatible():
     out, err, success = run_and_communicate(
         test_name="eager code object save: no event, no code object",
         args="4",
@@ -634,7 +492,9 @@ def check_lazy_loading_and_eager_incompatible():
         for s in ['"--load-all-code-objects" and "--lazy" are mutually exclusive']
     ]
     if not success or not check_errors(check_list, out, err):
-        print("Failed to detect -c and -z incompatibility")
+        logging.getLogger("rocm-debug-agent-test").info(
+            "Failed to detect -c and -z incompatibility"
+        )
         return False
 
     out, err, success = run_and_communicate(
@@ -643,28 +503,211 @@ def check_lazy_loading_and_eager_incompatible():
         debug_agent_options=f"--lazy --load-all-code-objects",
     )
     if not success or not check_errors(check_list, out, err):
-        print("Failed to detect -c and -z incompatibility")
+        logging.getLogger("rocm-debug-agent-test").info(
+            "Failed to detect -c and -z incompatibility"
+        )
         return False
     return True
 
 
-unsupported_tests = []
+# ==============================================================================
+# Test Definitions
+#
+# Each entry fully describes a test.  For tests with custom logic, 'function'
+# points to the existing handler above.  For simple pattern-check tests that
+# don't exist yet, 'patterns' alone is sufficient (handled by run_test).
+#
+# Supported keys:
+#   name           - unique test identifier (used in output)
+#   description    - human-readable summary
+#   args           - argument(s) passed to the test binary
+#   options        - ROCM_DEBUG_AGENT_OPTIONS value
+#   timeout        - per-test timeout in seconds (default: DEFAULT_TIMEOUT)
+#   patterns       - list of regex strings to match against stderr
+#   function       - custom handler (no-arg callable); omit for default
+#                    pattern-matching behaviour
+#   abort_on_fail  - if True, abort the entire suite when this test fails
+# ==============================================================================
 
-test_list = [
-    check_test_0,
-    check_test_1,
-    check_test_2,
-    check_test_3,
-    check_test_4,
-    check_test_5,
-    check_test_6,
-    check_test_7,
-    check_test_8,
-    check_test_9,
-    check_test_10,
-    check_eager_code_object_save,
-    check_lazy_loading_and_eager_incompatible,
+TEST_DEFINITIONS = [
+    {
+        'name': 'test_baseline',
+        'description': 'Default (no faults)',
+        'args': '0',
+        'options': '',
+        'function': test_baseline,
+        'timeout': 30,
+    },
+    {
+        'name': 'test_assert_trap',
+        'description': 'Assert trap (debug trap)',
+        'args': '1',
+        'options': '',
+        'timeout': 30,
+        'patterns': [
+            r"HSA_STATUS_ERROR_EXCEPTION: An HSAIL operation resulted in a hardware exception\.",
+            r"\(stopped, reason: ASSERT_TRAP\)",
+            r"exec: (00000000)?00000001",
+            r"s0:",
+            r"v0:",
+            r"0x0000: 22222222 11111111",
+            r"Disassembly for function vector_add_assert_trap\(int\*, int\*, int\*\)",
+        ],
+    },
+    {
+        'name': 'test_memory_violation',
+        'description': 'Memory violation',
+        'args': '2',
+        'options': '',
+        'timeout': 30,
+        'patterns': [
+            r"\(stopped, reason: MEMORY_VIOLATION\)",
+            r"exec: (ffffffff)?ffffffff",
+            r"s0:",
+            r"v0:",
+            r"0x0000: 22222222 11111111",
+            r"Disassembly for function vector_add_memory_fault\(int\*, int\*, int\*\)",
+        ],
+    },
+    {
+        'name': 'test_snapshot_code_object',
+        'description': 'Snapshot code object on load',
+        'args': '3',
+        'options': '',
+        'function': test_snapshot_code_object,
+        'timeout': 30,
+    },
+    {
+        'name': 'test_save_code_objects',
+        'description': 'Save code objects to disk',
+        'args': '4',
+        'options': '',
+        'function': test_save_code_objects,
+        'timeout': 60,
+    },
+    {
+        'name': 'test_output_redirection',
+        'description': 'Output redirection (-o)',
+        'args': '1',
+        'options': '',
+        'function': test_output_redirection,
+        'timeout': 30,
+        'patterns': [
+            r"s0:",
+            r"v0:",
+            r"0x0000: 22222222 11111111",
+            r"Disassembly for function vector_add_assert_trap\(int\*, int\*, int\*\)",
+        ],
+    },
+    {
+        'name': 'test_help',
+        'description': 'Help (-h)',
+        'args': '0',
+        'options': '-h',
+        'timeout': 10,
+        'patterns': [
+            r"ROCdebug-agent usage",
+        ],
+    },
+    {
+        'name': 'test_log_level',
+        'description': 'Log level (-l info)',
+        'args': '1',
+        'options': '-l info',
+        'timeout': 30,
+        'patterns': [
+            r"rocm-dbgapi",
+        ],
+    },
+    {
+        'name': 'test_all_waves',
+        'description': 'All waves (--all)',
+        'args': '5',
+        'options': '--all',
+        'timeout': 30,
+        'patterns': [
+            r"wave_1",
+            r"wave_2",
+            r"wave_3",
+            r"wave_4",
+            r"wave_5",
+            r"wave_6",
+            r"wave_7",
+            r"wave_8",
+        ],
+    },
+    {
+        'name': 'test_sigquit',
+        'description': 'SIGQUIT signal handling',
+        'args': '6',
+        'options': '',
+        'function': test_sigquit,
+        'timeout': 60,
+        'patterns': [
+            r"s0:",
+            r"v0:",
+            r"Disassembly for function sigquit_kern\(int\*\)",
+        ],
+    },
+    {
+        'name': 'test_debug_info',
+        'description': 'Debug info comparison',
+        'args': '1',
+        'options': '',
+        'function': test_debug_info_comparison,
+        'timeout': 30,
+        'patterns': [
+            r"c\[gid\] = a\[gid\] \+ b\[gid\] \+ \(lds_check\[0\] >> 32\);",
+            r"if \(gid == 0\)",
+        ],
+    },
+    {
+        'name': 'test_eager_vs_lazy',
+        'description': 'Eager vs lazy code object save',
+        'args': '4',
+        'options': '',
+        'function': test_eager_code_object_save,
+        'timeout': 60,
+    },
+    {
+        'name': 'test_lazy_loading_and_eager_incompatible',
+        'description': 'Lazy/load-all incompatibility',
+        'args': '4',
+        'options': '',
+        'function': test_lazy_loading_and_eager_incompatible,
+        'timeout': 30,
+        'patterns': [
+            r'"--load-all-code-objects" and "--lazy" are mutually exclusive',
+        ],
+    },
 ]
+
+
+def run_test(test_def):
+    """Dispatch a single test definition.
+
+    If 'function' is present, call it directly.
+    Otherwise fall back to generic pattern matching against stderr.
+    """
+    if 'function' in test_def:
+        return test_def['function']()
+
+    # Generic path: run binary with args/options, check stderr patterns.
+    check_list = [re.compile(s) for s in test_def.get('patterns', [])]
+    out_str, err_str, success = run_and_communicate(
+        test_name=test_def['name'],
+        args=test_def['args'],
+        debug_agent_options=test_def.get('options', ''),
+        timeout=test_def.get('timeout', DEFAULT_TIMEOUT),
+    )
+    if not success:
+        return False
+    if not check_list:
+        return True
+    return check_errors(check_list, out_str, err_str)
+
+
+unsupported_tests = []
 
 test_success = True
 failed_tests = []
@@ -682,20 +725,50 @@ for deferred_loading in (None, "1", "0"):
             mode_label = f"HIP_ENABLE_DEFERRED_LOADING={deferred_loading}"
             os.environ["HIP_ENABLE_DEFERRED_LOADING"] = deferred_loading
 
-        for i, test in enumerate(test_list, start=0):
-            name = test.testname
-            result = test()
-            test_success &= result
-            if test in unsupported_tests:
-                print(f"UNSUPPORTED: Test {i}: {mode_label} : {name}")
+        abort = False
+        _log = logging.getLogger("rocm-debug-agent-test")
+        for test_def in TEST_DEFINITIONS:
+            name = test_def['name']
+            desc = test_def['description']
+            label = f"{name}: {desc} [{mode_label}]"
+
+            _log.info("")
+            _log.info("=" * 72)
+            _log.info("  %s", label)
+            _log.info("=" * 72)
+            result = run_test(test_def)
+
+            func = test_def.get('function')
+            if func and func in unsupported_tests:
+                verdict = f"UNSUPPORTED: {label}"
+                print(verdict)
+                _log.info(verdict)
                 total_unsupported += 1
             elif result:
-                print(f"PASS: Test {i}: {mode_label} : {name}")
+                verdict = f"PASS: {label}"
+                print(verdict)
+                _log.info(verdict)
                 total_pass += 1
             else:
-                print(f"FAIL: Test {i}: {mode_label} : {name}")
+                verdict = f"FAIL: {label}"
+                print(verdict)
+                _log.info(verdict)
                 total_fail += 1
-                failed_tests.append(f"FAIL: Test {i}: {mode_label} : {name}")
+                failed_tests.append(verdict)
+                test_success = False
+
+                if test_def.get('abort_on_fail', False):
+                    msg = (
+                        f"\n*** abort_on_fail set for {name} — "
+                        "aborting remaining tests ***\n"
+                    )
+                    print(msg)
+                    _log.info(msg)
+                    abort = True
+                    break
+
+        if abort:
+            break
 
 total = total_pass + total_fail + total_unsupported
 print()
