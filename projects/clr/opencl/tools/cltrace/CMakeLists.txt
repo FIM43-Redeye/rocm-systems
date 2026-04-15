@@ -6,6 +6,10 @@ add_library(cltrace SHARED cltrace.cpp)
 
 if(WIN32)
   target_sources(cltrace PRIVATE cltrace.def)
+  configure_file(cltrace.rc.in cltrace_info.rc @ONLY)
+  target_sources(cltrace PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/cltrace_info.rc)
+  set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/cltrace_info.rc
+    PROPERTIES COMPILE_FLAGS "/I\"${CMAKE_SOURCE_DIR}\" /I\"${CMAKE_SOURCE_DIR}/rocclr\"")
 else()
   target_link_libraries(cltrace PRIVATE "-Wl,--version-script=${CMAKE_CURRENT_LIST_DIR}/cltrace.map")
   set_target_properties(cltrace PROPERTIES LINK_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/cltrace.map")
