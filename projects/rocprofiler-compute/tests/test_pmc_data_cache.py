@@ -72,7 +72,7 @@ def test_pmc_data_cache_level2_cache_hit() -> None:
 
 
 def test_pmc_data_cache_getattr_delegation() -> None:
-    """Attribute access delegates to the underlying DataFrame for columns and metadata."""
+    """Attribute access delegates to DataFrame columns and metadata."""
     cache = PmcDataCache(_make_pmc_dict())
     nested = cache["pmc_perf"]
 
@@ -82,7 +82,7 @@ def test_pmc_data_cache_getattr_delegation() -> None:
 
 
 def test_pmc_data_cache_contains_and_get() -> None:
-    """'in' and 'get' mirror dict semantics, returning None or a default for missing keys."""
+    """'in' and 'get' mirror dict semantics for missing keys."""
     cache = PmcDataCache(_make_pmc_dict())
 
     assert "pmc_perf" in cache
@@ -109,6 +109,29 @@ def test_pmc_data_cache_has_column_missing_column() -> None:
     """has_column returns False when the column name does not exist in the table."""
     cache = PmcDataCache(_make_pmc_dict())
     assert cache.has_column("pmc_perf", "NONEXISTENT") is False
+
+
+def test_pmc_data_cache_multiindex_contains() -> None:
+    """Containment checks level-0 table labels for MultiIndex DataFrame input."""
+    cache = PmcDataCache(_make_pmc_multiindex_df())
+
+    assert "pmc_perf" in cache
+    assert "nonexistent" not in cache
+
+
+def test_pmc_data_cache_multiindex_has_column_present() -> None:
+    """has_column returns True for existing MultiIndex table/column combinations."""
+    cache = PmcDataCache(_make_pmc_multiindex_df())
+
+    assert cache.has_column("pmc_perf", "SQ_WAVES") is True
+
+
+def test_pmc_data_cache_multiindex_has_column_missing() -> None:
+    """has_column returns False for missing MultiIndex tables or columns."""
+    cache = PmcDataCache(_make_pmc_multiindex_df())
+
+    assert cache.has_column("pmc_perf", "NONEXISTENT") is False
+    assert cache.has_column("nonexistent", "SQ_WAVES") is False
 
 
 def test_pmc_data_cache_getitem_missing_key() -> None:

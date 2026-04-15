@@ -33,6 +33,10 @@ class PmcDataCache:
             return default
 
     def __contains__(self, key: object) -> bool:
+        if isinstance(self._raw_pmc_df, pd.DataFrame):
+            columns = self._raw_pmc_df.columns
+            if isinstance(columns, pd.MultiIndex):
+                return key in columns.get_level_values(0)
         return key in self._raw_pmc_df
 
     def has_column(self, table_key: str, col_name: str) -> bool:
@@ -42,7 +46,10 @@ class PmcDataCache:
         nested = self.get(table_key)
         if nested is None:
             return False
-        return hasattr(nested, col_name)
+        try:
+            return col_name in nested
+        except TypeError:
+            return False
 
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
         return getattr(self._raw_pmc_df, name)
