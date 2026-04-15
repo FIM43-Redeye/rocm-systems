@@ -35,8 +35,8 @@ if(MSVC)
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /DEBUG:FULL")
 endif()
 
-# Set default HIPCC_BIN_DIR to /opt/rocm/bin
-set(HIPCC_BIN_DIR "/opt/rocm/bin" CACHE STRING "HIPCC and HIPCONFIG binary directories")
+# Set default HIPCC_BIN_DIR to ${ROCM_PATH}/bin
+set(HIPCC_BIN_DIR "${ROCM_PATH}/bin" CACHE STRING "HIPCC and HIPCONFIG binary directories")
 
 if(__HIP_ENABLE_PCH)
   set(_pchStatus 1)
@@ -247,7 +247,7 @@ add_to_config(_buildInfo HIP_RUNTIME)
 add_to_config(_buildInfo HIP_COMPILER)
 
 if (NOT DEFINED ROCM_PATH )
-     set ( ROCM_PATH "/opt/rocm"  CACHE STRING "Default ROCM installation directory." )
+     set ( ROCM_PATH "${CMAKE_INSTALL_PREFIX}"  CACHE STRING "Default ROCM installation directory." )
 endif ()
 message (STATUS "ROCM Installation path(ROCM_PATH): ${ROCM_PATH}")
 
