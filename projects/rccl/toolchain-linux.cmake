@@ -8,10 +8,93 @@
 #
 # The toolchain is auto-loaded by CMakeLists.txt if no toolchain file is specified.
 
+# -----------------------------------------------------------------------------
+# macro: rccl_detect_compilers
+#
+# Detects the ROCm compiler bin directory and sets CMAKE_CXX_COMPILER /
+# CMAKE_C_COMPILER from the same location.
+#
+# Priority: -DCMAKE_CXX_COMPILER / $CXX > ROCm bin/amdclang++ > llvm/bin/amdclang++ > llvm/bin/clang++
+# The C compiler is derived from the same directory (amdclang++→amdclang, clang++→clang).
+# NOTE: Once written to cache, compilers are not re-detected on re-runs.
+# To change, pass -DCMAKE_CXX_COMPILER / -DCMAKE_C_COMPILER or wipe the build directory.
+# -----------------------------------------------------------------------------
+macro(rccl_detect_compilers rocm_path)
+    if(EXISTS "${rocm_path}/bin/amdclang++")
+        set(_cxx "amdclang++" _cc "amdclang" _bin "${rocm_path}/bin")
+    elseif(EXISTS "${rocm_path}/llvm/bin/amdclang++")
+        set(_cxx "amdclang++" _cc "amdclang" _bin "${rocm_path}/llvm/bin")
+    elseif(EXISTS "${rocm_path}/llvm/bin/clang++")
+        set(_cxx "clang++"    _cc "clang"    _bin "${rocm_path}/llvm/bin")
+    else()
+        message(FATAL_ERROR
+            "Cannot find amdclang++/clang++ under ${rocm_path}/bin or ${rocm_path}/llvm/bin.")
+    endif()
+
+    if(NOT CMAKE_CXX_COMPILER)
+        if(DEFINED ENV{CXX} AND NOT "$ENV{CXX}" STREQUAL "")
+            set(CMAKE_CXX_COMPILER "$ENV{CXX}" CACHE PATH "Path to C++ compiler")
+        else()
+            set(CMAKE_CXX_COMPILER "${_bin}/${_cxx}" CACHE PATH "Path to C++ compiler")
+        endif()
+    endif()
+
+    if(NOT CMAKE_C_COMPILER)
+        if(DEFINED ENV{CC} AND NOT "$ENV{CC}" STREQUAL "")
+            set(CMAKE_C_COMPILER "$ENV{CC}" CACHE PATH "Path to C compiler")
+        else()
+            set(CMAKE_C_COMPILER "${_bin}/${_cc}" CACHE PATH "Path to C compiler")
+        endif()
+    endif()
+
+    unset(_cxx)
+    unset(_cc)
+    unset(_bin)
+endmacro()
+
+# -----------------------------------------------------------------------------
+# macro: rccl_set_build_flags
+#
+# Sets default per-build-type flags for both CXX and C from a single definition.
+# Skipped per-language if the user has set $CXXFLAGS/$CFLAGS or the per-type
+# CMake variable explicitly (e.g. -DCMAKE_CXX_FLAGS_DEBUG=...).
+#
+# -O1 is used for debug builds as -O0 exceeds GPU scratch space for the full RCCL build.
+# -O0 can be used for testing specific pain points if used in conjunction with ONLY_FUNCS.
+# DebugFast drops -ggdb3 to speed up debug builds (shorter compile and link times).
+# -----------------------------------------------------------------------------
+macro(rccl_set_build_flags)
+    if(CMAKE_BUILD_SUBTYPE MATCHES "DebugFast")
+        set(_debug "-O1 -g")
+    else()
+        set(_debug "-O1 -g -ggdb3")
+    endif()
+    set(_release        "-O3")
+    set(_relwithdebinfo "-O3 -g")
+
+    if(NOT (DEFINED ENV{CXXFLAGS} AND NOT "$ENV{CXXFLAGS}" STREQUAL ""))
+        if(NOT CMAKE_CXX_FLAGS_DEBUG)          set(CMAKE_CXX_FLAGS_DEBUG          "${_debug}")          endif()
+        if(NOT CMAKE_CXX_FLAGS_RELEASE)        set(CMAKE_CXX_FLAGS_RELEASE        "${_release}")        endif()
+        if(NOT CMAKE_CXX_FLAGS_RELWITHDEBINFO) set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${_relwithdebinfo}") endif()
+    endif()
+
+    if(NOT (DEFINED ENV{CFLAGS} AND NOT "$ENV{CFLAGS}" STREQUAL ""))
+        if(NOT CMAKE_C_FLAGS_DEBUG)            set(CMAKE_C_FLAGS_DEBUG            "${_debug}")          endif()
+        if(NOT CMAKE_C_FLAGS_RELEASE)          set(CMAKE_C_FLAGS_RELEASE          "${_release}")        endif()
+        if(NOT CMAKE_C_FLAGS_RELWITHDEBINFO)   set(CMAKE_C_FLAGS_RELWITHDEBINFO   "${_relwithdebinfo}") endif()
+    endif()
+
+    unset(_debug)
+    unset(_release)
+    unset(_relwithdebinfo)
+endmacro()
+
+# -----------------------------------------------------------------------------
 # Detect ROCm installation.
-# Priority: -DROCM_PATH > $ROCM_PATH env > PATH (via amdclang++/hipcc) > /opt/rocm.
+# Priority: -DROCM_PATH > $ROCM_PATH env > PATH (via amdclang++/clang++) > /opt/rocm.
 # NOTE: ROCM_PATH is written to the CMake cache on first configure. If you change the
 # ROCm installation, pass -DROCM_PATH=<new_path> or wipe the build directory.
+# -----------------------------------------------------------------------------
 
 # 1. -DROCM_PATH or $ROCM_PATH env var.
 if(NOT ROCM_PATH)
@@ -50,79 +133,13 @@ if(NOT ROCM_PATH)
     set(ROCM_PATH "/opt/rocm" CACHE PATH "Path to ROCm installation.")
 endif()
 
+# Finally, does ROCm exist?
 if(NOT EXISTS "${ROCM_PATH}")
     message(FATAL_ERROR "ROCM_PATH=${ROCM_PATH} does not exist")
 endif()
 
-# Detect CXX compiler. Priority: -DCMAKE_CXX_COMPILER > $CXX env > auto-detect from ROCm.
-# NOTE: Once written to cache, CMAKE_CXX_COMPILER is not re-detected from $CXX on re-runs.
-# To change compilers, pass -DCMAKE_CXX_COMPILER=<path> or wipe the build directory.
-if(NOT CMAKE_CXX_COMPILER)
-    if(DEFINED ENV{CXX} AND NOT "$ENV{CXX}" STREQUAL "")
-        set(CMAKE_CXX_COMPILER "$ENV{CXX}" CACHE PATH "Path to C++ compiler")
-    elseif(EXISTS "${ROCM_PATH}/bin/amdclang++")
-        set(CMAKE_CXX_COMPILER "${ROCM_PATH}/bin/amdclang++" CACHE PATH "Path to C++ compiler")
-    elseif(EXISTS "${ROCM_PATH}/llvm/bin/amdclang++")
-        set(CMAKE_CXX_COMPILER "${ROCM_PATH}/llvm/bin/amdclang++" CACHE PATH "Path to C++ compiler")
-    elseif(EXISTS "${ROCM_PATH}/llvm/bin/clang++")
-        set(CMAKE_CXX_COMPILER "${ROCM_PATH}/llvm/bin/clang++" CACHE PATH "Path to C++ compiler")
-    else()
-        message(FATAL_ERROR "Cannot find amdclang++/clang++ under ${ROCM_PATH}/bin or ${ROCM_PATH}/llvm/bin.")
-    endif()
-endif()
+# Found ROCm, let's set compiler paths
+rccl_detect_compilers("${ROCM_PATH}")
 
-# Set default per-build-type CXX flags unless the user has overridden them via $CXXFLAGS
-# or by explicitly setting the per-type variable (e.g. -DCMAKE_CXX_FLAGS_DEBUG=...).
-# Note: CMAKE_CXX_FLAGS (base flags for all types) is intentionally not checked here —
-# it is orthogonal to per-type flags and should not suppress them.
-if(NOT (DEFINED ENV{CXXFLAGS} AND NOT "$ENV{CXXFLAGS}" STREQUAL ""))
-    if(NOT CMAKE_CXX_FLAGS_DEBUG)
-        if(CMAKE_BUILD_SUBTYPE MATCHES "DebugFast")
-            set(CMAKE_CXX_FLAGS_DEBUG "-O1 -g")
-        else()
-            set(CMAKE_CXX_FLAGS_DEBUG "-O1 -g -ggdb3")
-        endif()
-    endif()
-    if(NOT CMAKE_CXX_FLAGS_RELEASE)
-        set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-    endif()
-    if(NOT CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
-    endif()
-endif()
-
-# Detect C compiler. Priority: -DCMAKE_C_COMPILER > $CC env > auto-detect from ROCm.
-# NOTE: Once written to cache, CMAKE_C_COMPILER is not re-detected from $CC on re-runs.
-if(NOT CMAKE_C_COMPILER)
-    if(DEFINED ENV{CC} AND NOT "$ENV{CC}" STREQUAL "")
-        set(CMAKE_C_COMPILER "$ENV{CC}" CACHE PATH "Path to C compiler")
-    elseif(EXISTS "${ROCM_PATH}/bin/amdclang")
-        set(CMAKE_C_COMPILER "${ROCM_PATH}/bin/amdclang" CACHE PATH "Path to C compiler")
-    elseif(EXISTS "${ROCM_PATH}/llvm/bin/amdclang")
-        set(CMAKE_C_COMPILER "${ROCM_PATH}/llvm/bin/amdclang" CACHE PATH "Path to C compiler")
-    elseif(EXISTS "${ROCM_PATH}/llvm/bin/clang")
-        set(CMAKE_C_COMPILER "${ROCM_PATH}/llvm/bin/clang" CACHE PATH "Path to C compiler")
-    else()
-        message(FATAL_ERROR "Cannot find amdclang/clang under ${ROCM_PATH}/bin or ${ROCM_PATH}/llvm/bin.")
-    endif()
-endif()
-
-# Set default per-build-type C flags unless the user has overridden them via $CFLAGS
-# or by explicitly setting the per-type variable (e.g. -DCMAKE_C_FLAGS_DEBUG=...).
-# Note: CMAKE_C_FLAGS (base flags for all types) is intentionally not checked here —
-# it is orthogonal to per-type flags and should not suppress them.
-if(NOT (DEFINED ENV{CFLAGS} AND NOT "$ENV{CFLAGS}" STREQUAL ""))
-    if(NOT CMAKE_C_FLAGS_DEBUG)
-        if(CMAKE_BUILD_SUBTYPE MATCHES "DebugFast")
-            set(CMAKE_C_FLAGS_DEBUG "-O1 -g")
-        else()
-            set(CMAKE_C_FLAGS_DEBUG "-O1 -g -ggdb3")
-        endif()
-    endif()
-    if(NOT CMAKE_C_FLAGS_RELEASE)
-        set(CMAKE_C_FLAGS_RELEASE "-O3")
-    endif()
-    if(NOT CMAKE_C_FLAGS_RELWITHDEBINFO)
-        set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
-    endif()
-endif()
+# Found ROCm and compilers, let's set compiler build flags
+rccl_set_build_flags()
