@@ -45,6 +45,8 @@
 #endif
 #endif
 
+#include "host_defines.h"  // __hip_internal::
+
 // Include it explicitly for HIPRTC
 #include "amd_hip_bf16.h"
 #include "amd_hip_mx_common.h"
@@ -52,9 +54,7 @@
 #if !defined(__HIPCC_RTC__)
 #include <hip/amd_detail/amd_hip_common.h>
 #include <climits>
-#include <limits>
 
-#include "host_defines.h"          // __hip_internal::
 #include "amd_hip_vector_types.h"  // float2 etc
 #include "amd_hip_fp16.h"          // __half_raw
 #include "math_fwd.h"              // ocml device functions
@@ -1006,11 +1006,11 @@ __FP8_HOST_DEVICE_STATIC__ T_int internal_cvt_e8m0_to_int_type(__hip_fp8_storage
   if (x == hip_detail::e8m0_NaN) {
     return 0;
   }
-  if (f > std::numeric_limits<T_int>::max()) {
-    return std::numeric_limits<T_int>::max();
+  if (f > __hip_internal::numeric_limits<T_int>::max()) {
+    return __hip_internal::numeric_limits<T_int>::max();
   }
-  if (f < std::numeric_limits<T_int>::lowest()) {
-    return std::numeric_limits<T_int>::lowest();
+  if (f < __hip_internal::numeric_limits<T_int>::lowest()) {
+    return __hip_internal::numeric_limits<T_int>::lowest();
   }
   return static_cast<T_int>(f);
 }
