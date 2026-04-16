@@ -54,11 +54,15 @@ postfork_parent_reinit();
  * @param agent_ids Agent handle values (one per GPU).
  * @param profile_configs Matching profile config handle values.
  * @param device_indices Matching logical device indices.
+ * @param counter_names_per_agent Resolved counter names per agent (parallel to
+ * agent_ids).
  */
 void
-register_sdk_pmc_source(uint64_t context_handle, const std::vector<uint64_t>& agent_ids,
-                        const std::vector<uint64_t>& profile_configs,
-                        const std::vector<size_t>&   device_indices);
+register_sdk_pmc_source(
+    uint64_t context_handle, const std::vector<uint64_t>& agent_ids,
+    const std::vector<uint64_t>&                 profile_configs,
+    const std::vector<size_t>&                   device_indices,
+    const std::vector<std::vector<std::string>>& counter_names_per_agent);
 
 }  // namespace pmc
 }  // namespace rocprofsys

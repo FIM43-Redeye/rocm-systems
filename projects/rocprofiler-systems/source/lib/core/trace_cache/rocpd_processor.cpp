@@ -518,6 +518,31 @@ rocpd_processor_t::handle([[maybe_unused]] const ainic_pmc_sample& _nic_sample)
 }
 
 void
+rocpd_processor_t::handle([[maybe_unused]] const sdk_pmc_sample& _sdk_pmc)
+{
+    const auto* counter_names = m_metadata->get_sdk_pmc_counter_names(_sdk_pmc.device_id);
+    if(!counter_names) return;
+
+    const auto* _name            = "rocm_counter_collection";
+    auto        name_primary_key = m_data_processor->insert_string(_name);
+    auto        event_id = m_data_processor->insert_event(name_primary_key, 0, 0, 0);
+
+    auto base_id =
+        m_agent_manager->get_agent_by_type_index(_sdk_pmc.device_id, agent_type::GPU)
+            .base_id;
+
+    for(size_t idx = 0; idx < _sdk_pmc.values.size() && idx < counter_names->size();
+        ++idx)
+    {
+        const auto& entry = (*counter_names)[idx];
+        m_data_processor->insert_pmc_event(event_id, base_id, entry.pmc_info_name.c_str(),
+                                           _sdk_pmc.values[idx]);
+        m_data_processor->insert_sample(entry.track_name.c_str(), _sdk_pmc.timestamp,
+                                        event_id);
+    }
+}
+
+void
 rocpd_processor_t::handle([[maybe_unused]] const cpu_freq_sample& _cpu_freq_sample)
 {
     struct core_freq_sample
