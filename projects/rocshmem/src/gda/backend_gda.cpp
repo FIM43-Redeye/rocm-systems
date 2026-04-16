@@ -381,15 +381,89 @@ void GDABackend::ctx_destroy(Context *ctx) {
   delete gda_host_ctx;
 }
 
-int GDABackend::buffer_register([[maybe_unused]] void *addr,
-                                [[maybe_unused]] size_t length) {
-  LOG_ERROR("GDABackend::buffer_register not supported");
-  return ROCSHMEM_ERROR;
+int GDABackend::buffer_register(void *addr, size_t length) {
+  struct ibv_pd *pd;
+
+  for (size_t i = 0; i < num_qps; i++) {
+    pd = gpu_qps[i].pd_;
+
+    /* Check if PD is in map, if in map check if addr has been registedered before */
+    if (user_lkey_map.count(pd)) {
+      printf("PD present in map\n");
+
+      for (const auto& entry: user_lkey_map[pd]) {
+        auto user_lkey = entry.second;
+        if (range_overlap((uintptr_t)addr, length,
+                          (uintptr_t)user_lkey.base_ptr, user_lkey.length)) {
+          printf("Cannot register ovallaping regions\n");
+          return ROCSHMEM_ERROR;
+        }
+      }
+    }
+
+    // Register the new region
+    int access = IBV_ACCESS_LOCAL_WRITE
+               | IBV_ACCESS_REMOTE_WRITE
+               | IBV_ACCESS_REMOTE_READ
+               | IBV_ACCESS_REMOTE_ATOMIC;
+
+    if (envvar::gda::pcie_relaxed_ordering) {
+      access |= IBV_ACCESS_RELAXED_ORDERING;
+    }
+
+    struct ibv_mr *mr = ibv.reg_mr(pd, addr, length, access);
+    CHECK_NNULL(mr, "ibv_reg_mr (buffer_register)");
+
+    gda_user_lkey_t user_lkey;
+    user_lkey.base_ptr = (uintptr_t) addr;
+    user_lkey.length   = length;
+    user_lkey.lkey     = mr->lkey;
+
+    std::pair mr_user_key_pair {mr, user_lkey};
+
+    user_lkey_map[pd].push_back(mr_user_key_pair);
+  }
+
+  return ROCSHMEM_SUCCESS;
 }
 
-int GDABackend::buffer_unregister([[maybe_unused]] void *addr) {
-  LOG_ERROR("GDABackend::buffer_unregister not supported");
-  return ROCSHMEM_ERROR;
+int GDABackend::buffer_unregister(void *addr) {
+  (void) addr;
+  struct ibv_pd *pd;
+
+  if (user_lkey_map.empty()) {
+    printf("no addresses registered\n");
+    return ROCSHMEM_ERROR;
+  }
+
+  for (size_t i = 0; i < num_qps; i++) {
+    pd = gpu_qps[i].pd_;
+
+    /* Check if PD is in map, if in map check if addr has been registedered before */
+    if (user_lkey_map.count(pd)) {
+      printf("PD present in map\n");
+
+      for (auto it = user_lkey_map[pd].begin(); it != user_lkey_map[pd].end(); ) {
+        auto user_lkey = it->second;
+        if (range_overlap((uintptr_t)addr, (uintptr_t)user_lkey.base_ptr, user_lkey.length)) {
+          printf("Found previously registered overlaping memory region. Removing\n");
+
+          int ret = ibv.dereg_mr(it->first);
+          CHECK_ZERO(ret, "ibv_dereg_mr");
+
+          it = user_lkey_map[pd].erase(it);
+        } else {
+          ++it;
+        }
+      }
+
+    } else {
+      printf("PD is not in map\n");
+      return ROCSHMEM_ERROR;
+    }
+  }
+
+  return ROCSHMEM_SUCCESS;
 }
 
 void GDABackend::reset_backend_stats() {

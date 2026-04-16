@@ -26,6 +26,7 @@
 #define LIBRARY_SRC_GDA_BACKEND_HPP_
 
 #include <dlfcn.h>
+#include <set>
 #include "ibv_core.hpp"
 
 #include "backend_bc.hpp"
@@ -39,6 +40,7 @@
 #include "gda/ionic/provider_gda_ionic.hpp"
 #include "gda/bnxt/provider_gda_bnxt.hpp"
 #include "gda/mlx5/provider_gda_mlx5.hpp"
+#include "gda/gda_common.hpp"
 
 namespace rocshmem {
 
@@ -73,6 +75,9 @@ class GDABackend : public Backend {
   struct ibv_device_attr device_attr;
   struct ibv_pd *pd_orig = nullptr;
   enum GDAProvider gda_provider = GDAProvider::UNSET;
+
+  std::unordered_map<struct ibv_pd *,
+                     std::vector<std::pair<struct ibv_mr*, gda_user_lkey_t>>> user_lkey_map;
 
   struct ibv_port_attr portinfo;
   union ibv_gid gid;

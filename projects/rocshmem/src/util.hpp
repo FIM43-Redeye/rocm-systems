@@ -475,6 +475,28 @@ __device__ __forceinline__ bool is_last_active_lane() {
   }
 }
 
+/* Checks if [ptr_a, ptr_a + ptr_a_len]  is within the range of [ptr_b, ptr_b + ptr_b_len] */
+[[maybe_unused]] __device__ __host__ inline bool range_overlap(uintptr_t ptr_a, size_t ptr_a_len,
+                                                               uintptr_t ptr_b, size_t ptr_b_len) {
+  const uintptr_t a_start = ptr_a;
+  const uintptr_t a_end   = a_start + ptr_a_len;
+
+  const uintptr_t b_start = ptr_b;
+  const uintptr_t b_end   = b_start + ptr_b_len;
+
+  return (a_start < b_end) && (b_start < a_end);
+}
+
+/* Checks if ptr_a is within the range of [ptr_b, ptr_b + ptr_b_len] */
+[[maybe_unused]] __device__ __host__ inline bool range_overlap(uintptr_t ptr_a,
+                                                               uintptr_t ptr_b, size_t ptr_b_len) {
+  const uintptr_t ptr   = ptr_a;
+  const uintptr_t start = ptr_b;
+  const uintptr_t end   = start + ptr_b_len;
+
+  return (start <= ptr) && (ptr <= end);
+}
+
 int rocm_init();
 
 void rocm_memory_lock_to_fine_grain(void* ptr, size_t size, void** gpu_ptr, int gpu_id);

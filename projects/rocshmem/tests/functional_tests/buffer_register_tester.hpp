@@ -22,18 +22,29 @@
  * IN THE SOFTWARE.
  *****************************************************************************/
 
-#ifndef LIBRARY_SRC_GDA_ENUMS_HPP_
-#define LIBRARY_SRC_GDA_ENUMS_HPP_
+#ifndef BUFFER_REGISTER_TESTER_HPP
+#define BUFFER_REGISTER_TESTER_HPP
 
-#include "team.hpp"
+#include "tester.hpp"
 
-namespace rocshmem {
-namespace gda {
-  enum alltoallv_wg_algos {
-    ALLTOALLV_WG_ALGO_GET = 0,
-    ALLTOALLV_WG_ALGO_COPY,
-  };
-}  // namespace gda
-}  // namespace rocshmem
+/******************************************************************************
+ * HOST TESTER CLASS
+ *****************************************************************************/
+class BufferRegisterTester : public Tester {
+ public:
+  explicit BufferRegisterTester(TesterArguments args);
+  virtual ~BufferRegisterTester();
 
-#endif  // LIBRARY_SRC_GDA_ENUMS_HPP_
+ protected:
+  virtual void resetBuffers(size_t size) override;
+
+  virtual void launchKernel(dim3 gridSize, dim3 blockSize, int loop,
+                            size_t size) override;
+
+  virtual void verifyResults(size_t size) override;
+
+  char *user_buffer = nullptr;
+  char *dest = nullptr;
+};
+
+#endif  // BUFFER_REGISTER_TESTER_HPP

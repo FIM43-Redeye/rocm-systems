@@ -44,6 +44,7 @@
 #include "gda/ionic/provider_gda_ionic.hpp"
 #include "gda/mlx5/provider_gda_mlx5.hpp"
 #include "gda/bnxt/provider_gda_bnxt.hpp"
+#include "gda/gda_common.hpp"
 
 #include "containers/free_list.hpp"
 #include "memory/hip_allocator.hpp"
@@ -443,6 +444,11 @@ class QueuePair {
   /* GDAProvider::IONIC END */
 
   uint32_t inline_threshold{0};
+
+  struct ibv_pd* pd_ = nullptr;
+
+  gda_user_lkey_t  *user_lkeys = nullptr;
+  size_t num_user_lkeys = 0;
 
   char dev_name[24];
   uint32_t qp_num{0};
