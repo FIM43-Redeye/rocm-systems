@@ -15,7 +15,9 @@ from utils.roofline_calc import calc_ai_analyze
 from utils.utils_analysis import (
     build_call_trees,
     build_call_trees_with_kernel_ids,
+    nullify_incomplete_dispatch_counters,
     process_torch_trace_output,
+    warn_if_multiple_kernels_unfiltered,
     write_torch_trace_consolidated_csv,
 )
 from utils.utils_common import validate_roofline_csv
@@ -116,6 +118,8 @@ class cli_analysis(OmniAnalyze_Base):
                     policy=self._profiling_config["iteration_multiplexing"],
                 )
 
+            workload.raw_pmc = nullify_incomplete_dispatch_counters(workload.raw_pmc)
+
             kernel_top_df, dispatch_info_df = file_io.create_df_kernel_top_stats(
                 df_in=workload.raw_pmc,
                 raw_data_dir=path_info[0],
@@ -127,6 +131,12 @@ class cli_analysis(OmniAnalyze_Base):
             )
             workload.dfs[parser.PMC_KERNEL_TOP_TABLE_ID] = kernel_top_df
             workload.dfs[parser.PMC_DISPATCH_INFO_TABLE_ID] = dispatch_info_df
+
+            warn_if_multiple_kernels_unfiltered(
+                kernel_top_df,
+                workload.filter_kernel_ids,
+                workload.filter_dispatch_ids,
+            )
 
             if getattr(args, "list_torch_operators", False):
                 consolidated_df, torch_trace_path = process_torch_trace_output(

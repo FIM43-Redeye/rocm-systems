@@ -27,6 +27,10 @@ from utils.logger import (
     demarcate,
 )
 from utils.roofline_calc import calc_ai_analyze
+from utils.utils_analysis import (
+    nullify_incomplete_dispatch_counters,
+    warn_if_multiple_kernels_unfiltered,
+)
 from utils.utils_common import validate_roofline_csv
 
 
@@ -172,6 +176,10 @@ class webui_analysis(OmniAnalyze_Base):
                         run_workload.raw_pmc,
                         policy=self._profiling_config["iteration_multiplexing"],
                     )
+
+                run_workload.raw_pmc = nullify_incomplete_dispatch_counters(
+                    run_workload.raw_pmc
+                )
 
                 # Apply filters to workload data
                 console_debug("analysis", f"gui dispatch filter is {disp_filt}")
@@ -468,6 +476,8 @@ class webui_analysis(OmniAnalyze_Base):
                 policy=self._profiling_config["iteration_multiplexing"],
             )
 
+        workload.raw_pmc = nullify_incomplete_dispatch_counters(workload.raw_pmc)
+
         kernel_top_df, dispatch_info_df = file_io.create_df_kernel_top_stats(
             df_in=workload.raw_pmc,
             raw_data_dir=self.dest_dir,
@@ -479,6 +489,13 @@ class webui_analysis(OmniAnalyze_Base):
         )
         workload.dfs[parser.PMC_KERNEL_TOP_TABLE_ID] = kernel_top_df
         workload.dfs[parser.PMC_DISPATCH_INFO_TABLE_ID] = dispatch_info_df
+
+        warn_if_multiple_kernels_unfiltered(
+            kernel_top_df,
+            workload.filter_kernel_ids,
+            workload.filter_dispatch_ids,
+        )
+
         # Load remaining non-metric tables (sysinfo, etc.)
         parser.load_non_mertrics_table(workload, self.dest_dir, args)
         # set architecture

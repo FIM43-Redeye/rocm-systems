@@ -527,6 +527,18 @@ add_test(
 )
 
 # -----------------------------------
+# Incomplete dispatch filtering tests
+# -----------------------------------
+
+add_test(
+    NAME test_incomplete_dispatch_filtering
+    COMMAND
+        ${PYTHON_TEST_COMMAND} -m pytest ${STANDALONEBINARY_TEST_OPTION}
+        --junitxml=tests/test_incomplete_dispatch_filtering.xml ${COV_OPTION}
+        tests/test_incomplete_dispatch_filtering.py ${WORKING_DIR_OPTION}
+)
+
+# -----------------------------------
 # Analysis database tests
 # -----------------------------------
 

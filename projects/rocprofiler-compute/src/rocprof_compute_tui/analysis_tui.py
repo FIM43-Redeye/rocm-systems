@@ -17,6 +17,10 @@ from rocprof_compute_tui.utils.tui_utils import (
 )
 from utils import file_io, parser, schema
 from utils.logger import console_error, console_log, demarcate
+from utils.utils_analysis import (
+    nullify_incomplete_dispatch_counters,
+    warn_if_multiple_kernels_unfiltered,
+)
 
 
 class tui_analysis(OmniAnalyze_Base):
@@ -89,6 +93,8 @@ class tui_analysis(OmniAnalyze_Base):
         if self.args.spatial_multiplexing:
             workload.raw_pmc = self.spatial_multiplex_merge_counters(workload.raw_pmc)
 
+        workload.raw_pmc = nullify_incomplete_dispatch_counters(workload.raw_pmc)
+
         kernel_top_df, dispatch_info_df = file_io.create_df_kernel_top_stats(
             df_in=workload.raw_pmc,
             raw_data_dir=self.path,
@@ -100,6 +106,12 @@ class tui_analysis(OmniAnalyze_Base):
         )
         workload.dfs[parser.PMC_KERNEL_TOP_TABLE_ID] = kernel_top_df
         workload.dfs[parser.PMC_DISPATCH_INFO_TABLE_ID] = dispatch_info_df
+
+        warn_if_multiple_kernels_unfiltered(
+            kernel_top_df,
+            workload.filter_kernel_ids,
+            workload.filter_dispatch_ids,
+        )
 
         parser.load_non_mertrics_table(
             workload=workload,

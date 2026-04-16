@@ -578,6 +578,17 @@ def process_table_data(
                     if run_name != base_run:
                         # Calculate percent difference between current and
                         # base dataframe.
+
+                        # Detect which rows had N/A in base or current before
+                        # coercion so we can preserve them in the output.
+                        base_na_mask = pd.to_numeric(
+                            base_df[header], errors="coerce"
+                        ).isna()
+                        cur_na_mask = pd.to_numeric(
+                            cur_df[header], errors="coerce"
+                        ).isna()
+                        either_na_mask = base_na_mask | cur_na_mask
+
                         base_series = pd.to_numeric(
                             base_df[header], errors="coerce"
                         ).fillna(0.0)
@@ -601,6 +612,10 @@ def process_table_data(
                             + percent_diff.astype(str)
                             + "%)"
                         )
+
+                        # Restore N/A for rows where either base or current
+                        # had unavailable data
+                        formatted_diff[either_na_mask] = "N/A"
 
                         result_df = pd.concat([result_df, formatted_diff], axis=1)
 

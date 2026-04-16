@@ -45,6 +45,7 @@ from utils.roofline_calc import (
     PEAK_OPS_DATATYPES,
     SUPPORTED_DATATYPES,
 )
+from utils.utils_analysis import nullify_incomplete_dispatch_counters
 from utils.utils_common import BUILD_IN_VARS, get_uuid, get_version
 
 
@@ -311,6 +312,8 @@ class db_analysis(OmniAnalyze_Base):
                     raw_pmc,
                     policy=self._profiling_config["iteration_multiplexing"],
                 )
+
+            raw_pmc = nullify_incomplete_dispatch_counters(raw_pmc)
 
             pmc_df_per_workload[workload_path] = raw_pmc["pmc_perf"]
 

@@ -367,6 +367,15 @@ Use ``--view table`` to force plain tabular output for all sections and ignore `
 
 **Filter kernels**
 
+.. tip::
+
+   By default, metrics are aggregated across **all** kernels in the workload.
+   When a workload contains multiple kernels, this can produce misleading
+   results — especially if incidental kernels (such as
+   ``__amd_rocclr_fillBufferAligned`` or ``__amd_rocclr_copyBuffer``) are
+   included in the profile. Use ``--list-stats`` to view detected kernels,
+   then use ``-k`` / ``--kernel`` to select the kernel(s) of interest.
+
 First, list the top kernels in your application using `--list-stats`.
 
 .. code-block::

@@ -6,6 +6,10 @@ Full documentation for ROCm Compute Profiler is available at [https://rocm.docs.
 
 ### Added
 
+* Incomplete dispatch counter filtering in analyze mode. Dispatches with partially collected counters (containing NaN values) now have all their counter values set to NaN before metric calculation. This ensures aggregation functions (SUM, AVG) operate over the same set of dispatches for every counter, preventing mathematically inconsistent metrics.
+
+* Multi-kernel analysis warning. When a workload contains multiple kernels and no kernel or dispatch filter is applied, a warning is now displayed recommending the use of `--list-stats` and `-k`/`--kernel` to inspect results for a specific kernel.
+
 ### Changed
 
 * Changed ratio metric aggregation from `AVG(A/B)` (arithmetic mean of per-dispatch ratios) to `SUM(A)/SUM(B)` (ratio of totals) across all analysis YAML configurations and all GPU architectures. `SUM(A)/SUM(B)` is a weighted average where each dispatch contributes proportionally to its denominator magnitude (duration, access count, cycle count). Single-dispatch workloads are unaffected (mathematically identical). Multi-dispatch workloads with different kernels or varying durations will see corrected values.
@@ -21,6 +25,8 @@ Full documentation for ROCm Compute Profiler is available at [https://rocm.docs.
 ### Resolved issues
 
 * Fixed `inf` display for metrics with zero-denominator counters (e.g., L2-Fabric Write Latency when no write requests are issued). The metric evaluation path now catches `inf` scalar results and returns `"N/A"`, consistent with existing `NaN` handling.
+
+* Fixed baseline comparison displaying `0 (0.0%)` instead of `N/A` when counter data is unavailable for either the base or current workload.
 
 ### Upcoming changes
 

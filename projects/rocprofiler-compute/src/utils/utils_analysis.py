@@ -20,6 +20,31 @@ from utils.logger import (
 
 NS_TO_MS = 1.0 / 1_000_000.0
 
+# Columns in the PMC DataFrame that contain dispatch metadata rather than
+# hardware counter values.  Used by multiple functions to separate counters
+# from metadata when operating on the raw_pmc DataFrame.
+NON_COUNTER_COLUMNS = frozenset([
+    "Dispatch_ID",
+    "GPU_ID",
+    "Queue_ID",
+    "PID",
+    "TID",
+    "Grid_Size",
+    "Workgroup_Size",
+    "LDS_Per_Workgroup",
+    "Scratch_Per_Workitem",
+    "Arch_VGPR",
+    "Accum_VGPR",
+    "SGPR",
+    "Wave_Size",
+    "Kernel_Name",
+    "Start_Timestamp",
+    "End_Timestamp",
+    "Correlation_ID",
+    "Kernel_ID",
+    "Node",
+])
+
 
 def get_bw_scale_and_unit(value: float) -> tuple[float, str]:
     """Return the divisor and suffix for a bandwidth value in Bytes/s."""
@@ -430,6 +455,87 @@ def reverse_multi_index_df_pmc(
     return dfs, coll_levels
 
 
+def nullify_incomplete_dispatch_counters(
+    df_multi_index: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    For dispatch entries that have at least one NaN in any counter column,
+    set ALL counter values to NaN. This ensures that aggregation functions
+    operate over the exact same set of dispatches for every counter,
+    preventing mathematically inconsistent metrics.
+
+    Metadata columns are preserved so that kernel top-stats and dispatch
+    lists remain accurate.
+
+    Args:
+        df_multi_index: Multi-index DataFrame with top-level column like 'pmc_perf'
+                        and second-level columns being counter names and metadata.
+
+    Returns:
+        DataFrame with incomplete dispatch counter values set to NaN.
+    """
+    dfs, coll_levels = reverse_multi_index_df_pmc(df_multi_index)
+    result_dfs: list[pd.DataFrame] = []
+    incomplete_kernels: dict[str, int] = {}
+
+    for df in dfs:
+        df = df.copy()
+        counter_cols = [col for col in df.columns if col not in NON_COUNTER_COLUMNS]
+
+        if not counter_cols:
+            result_dfs.append(df)
+            continue
+
+        has_nan = df[counter_cols].isna().any(axis=1)
+
+        if not has_nan.any():
+            result_dfs.append(df)
+            continue
+
+        if "Kernel_Name" in df.columns:
+            affected_rows = df.loc[has_nan, "Kernel_Name"]
+            for kernel_name, count in affected_rows.value_counts().items():
+                incomplete_kernels[kernel_name] = (
+                    incomplete_kernels.get(kernel_name, 0) + count
+                )
+
+        df.loc[has_nan, counter_cols] = np.nan
+        result_dfs.append(df)
+
+    if incomplete_kernels:
+        total_dispatches = sum(incomplete_kernels.values())
+        kernel_count = len(incomplete_kernels)
+        msg_lines = [
+            f"Detected {total_dispatches} dispatch(es) across {kernel_count} "
+            f"kernel(s) with incomplete counter data. These dispatches have been "
+            "excluded from metric calculations to ensure consistency.",
+        ]
+        for kernel_name, count in incomplete_kernels.items():
+            msg_lines.append(f"  - {kernel_name}: {count} dispatch(es)")
+        msg_lines.append(
+            "To resolve, consider:\n\t(1) reducing the number of counter "
+            "blocks/metric sets\n\t(2) increasing the number of kernel "
+            "invocations\n\t(3) using multi-pass profiling."
+        )
+        console_warning("\n".join(msg_lines))
+
+    return pd.concat(result_dfs, keys=coll_levels, axis=1, copy=False)
+
+
+def warn_if_multiple_kernels_unfiltered(
+    kernel_top_df: pd.DataFrame,
+    filter_kernel_ids: list[int],
+    filter_dispatch_ids: list[int],
+) -> None:
+    """Warn when analysis covers multiple kernels without a kernel/dispatch filter."""
+    if len(kernel_top_df) > 1 and not filter_kernel_ids and not filter_dispatch_ids:
+        console_warning(
+            f"Results are averaged across {len(kernel_top_df)} kernels. "
+            "Use --list-stats and -k/--kernel to inspect results for a "
+            "specific kernel."
+        )
+
+
 def impute_counters_iteration_multiplex(
     df_multi_index: pd.DataFrame,
     policy: str,
@@ -437,21 +543,6 @@ def impute_counters_iteration_multiplex(
     """
     Perform data imputation for missing counter values due to iteration multiplexing.
     """
-    non_counter_column_index = [
-        "Dispatch_ID",
-        "GPU_ID",
-        "Grid_Size",
-        "Workgroup_Size",
-        "LDS_Per_Workgroup",
-        "Scratch_Per_Workitem",
-        "Arch_VGPR",
-        "Accum_VGPR",
-        "SGPR",
-        "Kernel_Name",
-        "Start_Timestamp",
-        "End_Timestamp",
-        "Kernel_ID",
-    ]
     result_dfs: list[pd.DataFrame] = []
     dfs, coll_levels = reverse_multi_index_df_pmc(df_multi_index)
 
@@ -471,9 +562,7 @@ def impute_counters_iteration_multiplex(
             )
         )
 
-        counter_columns = [
-            col for col in df.columns if col not in non_counter_column_index
-        ]
+        counter_columns = [col for col in df.columns if col not in NON_COUNTER_COLUMNS]
         # Collect imputed groups as dataframes
         group_dfs = []
 
@@ -537,28 +626,6 @@ def merge_counters_spatial_multiplex(df_multi_index: pd.DataFrame) -> pd.DataFra
     while for end time stamp, it will be equal to the summation between median
     start stamp and median delta time.
     """
-    non_counter_column_index = [
-        "Dispatch_ID",
-        "GPU_ID",
-        "Queue_ID",
-        "PID",
-        "TID",
-        "Grid_Size",
-        "Workgroup_Size",
-        "LDS_Per_Workgroup",
-        "Scratch_Per_Workitem",
-        "Arch_VGPR",
-        "Accum_VGPR",
-        "SGPR",
-        "Wave_Size",
-        "Kernel_Name",
-        "Start_Timestamp",
-        "End_Timestamp",
-        "Correlation_ID",
-        "Kernel_ID",
-        "Node",
-    ]
-
     expired_column_index = [
         "Node",
         "PID",
@@ -592,9 +659,7 @@ def merge_counters_spatial_multiplex(df_multi_index: pd.DataFrame) -> pd.DataFra
 
             # Process non-counter columns
             for col in [
-                col
-                for col in non_counter_column_index
-                if col not in expired_column_index
+                col for col in NON_COUNTER_COLUMNS if col not in expired_column_index
             ]:
                 if col == "Start_Timestamp":
                     # For Start_Timestamp, take the median
@@ -608,9 +673,9 @@ def merge_counters_spatial_multiplex(df_multi_index: pd.DataFrame) -> pd.DataFra
                     merged_row[col] = group.iloc[0][col]
 
             # Process counter columns (assumed to be all columns not in
-            # non_counter_column_index)
+            # NON_COUNTER_COLUMNS)
             counter_columns = [
-                col for col in group.columns if col not in non_counter_column_index
+                col for col in group.columns if col not in NON_COUNTER_COLUMNS
             ]
             for counter_col in counter_columns:
                 # for counter columns, take the first non-none (or non-nan) value
