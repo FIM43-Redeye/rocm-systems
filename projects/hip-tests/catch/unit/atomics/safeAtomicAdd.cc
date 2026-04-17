@@ -40,11 +40,13 @@
  *    - HIP_VERSION >= 5.2
  */
 HIP_TEMPLATE_TEST_CASE(Unit_safeAtomicAdd_Positive, float, double) {
+  const auto iterations = TestParameterStore::instance().getIterationsForCurrentLevel();
+
   int warp_size = 0;
   HIP_CHECK(hipDeviceGetAttribute(&warp_size, hipDeviceAttributeWarpSize, 0));
   const auto cache_line_size = 128u;
 
-  for (auto current = 0; current < cmd_options.iterations; ++current) {
+  for (auto current = 0; current < iterations; ++current) {
     DYNAMIC_SECTION("Same address " << current) {
       SingleDeviceSingleKernelTest<TestType, AtomicOperation::kSafeAdd>(1, sizeof(TestType));
     }
@@ -85,11 +87,13 @@ HIP_TEMPLATE_TEST_CASE(Unit_safeAtomicAdd_Positive, float, double) {
  *    - HIP_VERSION >= 5.2
  */
 HIP_TEMPLATE_TEST_CASE(Unit_safeAtomicAdd_Positive_Multi_Kernel, float, double) {
+  const auto iterations = TestParameterStore::instance().getIterationsForCurrentLevel();
+
   int warp_size = 0;
   HIP_CHECK(hipDeviceGetAttribute(&warp_size, hipDeviceAttributeWarpSize, 0));
   const auto cache_line_size = 128u;
 
-  for (auto current = 0; current < cmd_options.iterations; ++current) {
+  for (auto current = 0; current < iterations; ++current) {
     DYNAMIC_SECTION("Same address " << current) {
       SingleDeviceMultipleKernelTest<TestType, AtomicOperation::kSafeAdd>(2, 1, sizeof(TestType));
     }

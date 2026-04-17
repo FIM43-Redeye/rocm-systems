@@ -43,12 +43,14 @@
  *    - HIP_VERSION >= 5.2
  */
 HIP_TEMPLATE_TEST_CASE(Unit___hip_atomic_fetch_add_Positive_Wavefront, int, unsigned int,
-                   unsigned long, unsigned long long, float, double) {
+                       unsigned long, unsigned long long, float, double) {
+  const auto iterations = TestParameterStore::instance().getIterationsForCurrentLevel();
+
   int warp_size = 0;
   HIP_CHECK(hipDeviceGetAttribute(&warp_size, hipDeviceAttributeWarpSize, 0));
   const auto cache_line_size = 128u;
 
-  for (auto current = 0; current < cmd_options.iterations; ++current) {
+  for (auto current = 0; current < iterations; ++current) {
     DYNAMIC_SECTION("Same address " << current) {
       SingleDeviceSingleKernelTest<TestType, AtomicOperation::kBuiltinAdd,
                                    __HIP_MEMORY_SCOPE_WAVEFRONT>(1, sizeof(TestType));
@@ -92,12 +94,14 @@ HIP_TEMPLATE_TEST_CASE(Unit___hip_atomic_fetch_add_Positive_Wavefront, int, unsi
  *    - HIP_VERSION >= 5.2
  */
 HIP_TEMPLATE_TEST_CASE(Unit___hip_atomic_fetch_add_Positive_Workgroup, int, unsigned int,
-                   unsigned long, unsigned long long, float, double) {
+                       unsigned long, unsigned long long, float, double) {
+  const auto iterations = TestParameterStore::instance().getIterationsForCurrentLevel();
+
   int warp_size = 0;
   HIP_CHECK(hipDeviceGetAttribute(&warp_size, hipDeviceAttributeWarpSize, 0));
   const auto cache_line_size = 128u;
 
-  for (auto current = 0; current < cmd_options.iterations; ++current) {
+  for (auto current = 0; current < iterations; ++current) {
     DYNAMIC_SECTION("Same address " << current) {
       SingleDeviceSingleKernelTest<TestType, AtomicOperation::kBuiltinAdd,
                                    __HIP_MEMORY_SCOPE_WORKGROUP>(1, sizeof(TestType));
