@@ -51,7 +51,7 @@ private:
 
 TEST_F(PrintOutputTest, PrintCommand_HasOutput)
 {
-    std::vector<char*> command_args = { make_env("./test"), make_env("arg1") };
+    std::vector<std::string> command_args = { "./test", "arg1" };
     print_command(command_args);
     auto output = get_cerr();
     EXPECT_NE(output.find("Executing"), std::string::npos);
@@ -61,26 +61,16 @@ TEST_F(PrintOutputTest, PrintCommand_HasOutput)
 
 TEST_F(PrintOutputTest, PrintCommand_WithPrefix)
 {
-    std::vector<char*> command_args = { make_env("./myapp") };
+    std::vector<std::string> command_args = { "./myapp" };
     print_command(command_args, "PREFIX: ");
     EXPECT_NE(get_cerr().find("PREFIX: "), std::string::npos);
 }
 
 TEST_F(PrintOutputTest, PrintCommand_EmptyArgv)
 {
-    std::vector<char*> command_args = {};
+    std::vector<std::string> command_args = {};
     print_command(command_args);
     EXPECT_TRUE(does_not_contain(get_cerr(), "Executing"));
-}
-
-TEST_F(PrintOutputTest, PrintCommand_NullptrEntries)
-{
-    std::vector<char*> command_args = { make_env("./test"), nullptr, make_env("arg1") };
-    print_command(command_args);
-    auto output = get_cerr();
-    EXPECT_NE(output.find("Executing"), std::string::npos);
-    EXPECT_NE(output.find("./test"), std::string::npos);
-    EXPECT_NE(output.find("arg1"), std::string::npos);
 }
 
 TEST_F(PrintOutputTest, PrintEnvironment_WithUpdates)

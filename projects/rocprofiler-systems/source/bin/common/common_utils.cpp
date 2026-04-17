@@ -45,11 +45,10 @@ env_key(std::string_view entry) noexcept
 }  // namespace
 
 void
-print_command(const std::vector<char*>& argv, std::string_view prefix)
+print_command(const std::vector<std::string>& argv, std::string_view prefix)
 {
     auto cmd = std::accumulate(argv.begin(), argv.end(), std::string{},
-                               [](std::string acc, const char* arg) {
-                                   if(arg == nullptr) return acc;
+                               [](std::string acc, const std::string& arg) {
                                    if(!acc.empty()) acc += ' ';
                                    acc += arg;
                                    return acc;

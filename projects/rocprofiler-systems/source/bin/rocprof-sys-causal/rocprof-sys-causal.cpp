@@ -16,6 +16,19 @@
 
 namespace utils = rocprofsys::common_utils;
 
+namespace
+{
+std::vector<std::string>
+to_string_vec(const std::vector<char*>& argv)
+{
+    std::vector<std::string> out;
+    out.reserve(argv.size());
+    for(const auto* arg : argv)
+        if(arg != nullptr) out.emplace_back(arg);
+    return out;
+}
+}  // namespace
+
 int
 main(int argc, char** argv)
 {
@@ -71,7 +84,7 @@ main(int argc, char** argv)
             auto _verbose = get_verbose();
             if(_verbose >= 0)
                 utils::print_environment(_env, get_updated_envs(), _verbose >= 1, "0: ");
-            if(_verbose >= 1) utils::print_command(_argv, "0: ");
+            if(_verbose >= 1) utils::print_command(to_string_vec(_argv), "0: ");
             _argv.emplace_back(nullptr);
             _env.emplace_back(nullptr);
             return execvpe(_argv.front(), _argv.data(), _env.data());
@@ -106,7 +119,8 @@ main(int argc, char** argv)
                 if(_verbose >= 0)
                     utils::print_environment(_env, get_updated_envs(), _verbose >= 1,
                                              _prefix.str());
-                if(_verbose >= 1) utils::print_command(_argv, _prefix.str());
+                if(_verbose >= 1)
+                    utils::print_command(to_string_vec(_argv), _prefix.str());
                 _argv.emplace_back(nullptr);
                 _env.emplace_back(nullptr);
                 return execvpe(_argv.front(), _argv.data(), _env.data());
