@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from utils.metrics.evaluator import MetricEvaluator
+from utils.metrics.metric_evaluator import MetricEvaluator
 from utils.metrics.pmc_data_cache import PmcDataCache
 
 
