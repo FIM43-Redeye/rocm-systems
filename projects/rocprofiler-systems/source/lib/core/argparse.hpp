@@ -47,7 +47,7 @@ struct parser_data
     vsettings_set_t                      processed_settings = {};
     std::unordered_set<std::string>      processed_environs = {};
     std::unordered_set<std::string>      processed_groups   = {};
-    std::vector<char*>                   current            = {};
+    std::vector<std::string>             current            = {};
     std::vector<std::string>             command            = {};
     std::unordered_set<std::string_view> updated            = {};
     std::unordered_set<std::string>      initial            = {};

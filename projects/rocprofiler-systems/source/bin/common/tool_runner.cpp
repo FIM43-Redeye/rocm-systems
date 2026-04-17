@@ -128,12 +128,10 @@ get_initial_environment(parser_data_t&                               _data,
 {
     if(environ != nullptr)
     {
-        int idx = 0;
-        while(environ[idx] != nullptr)
+        for(int idx = 0; environ[idx] != nullptr; ++idx)
         {
-            auto* env_entry = environ[idx++];
-            _data.initial.emplace(env_entry);
-            _data.current.emplace_back(strdup(env_entry));
+            _data.initial.emplace(environ[idx]);
+            _data.current.emplace_back(environ[idx]);
         }
     }
 
@@ -452,8 +450,6 @@ run_tool(int argc, char** argv, const tool_config& config)
 
     prepare_environment(_parse_data, config);
 
-    auto& _envp = _parse_data.current;
-
     if(_parse_data.command.empty())
     {
         _print_usage();
@@ -466,17 +462,23 @@ run_tool(int argc, char** argv, const tool_config& config)
                                  config.output_prefix);
     if(_verbose >= 1) utils::print_command(_parse_data.command, config.output_prefix);
 
-    std::vector<char*> argv_ptrs;
-    argv_ptrs.reserve(_parse_data.command.size() + 1);
-    for(auto& arg : _parse_data.command)
-        argv_ptrs.emplace_back(arg.data());
-    argv_ptrs.emplace_back(nullptr);
-    _envp.emplace_back(nullptr);
+    auto to_c_argv = [](std::vector<std::string>& src) {
+        std::vector<char*> out;
+        out.reserve(src.size() + 1);
+        for(auto& entry : src)
+            out.emplace_back(entry.data());
+        out.emplace_back(nullptr);
+        return out;
+    };
+
+    auto argv_ptrs = to_c_argv(_parse_data.command);
+    auto envp_ptrs = to_c_argv(_parse_data.current);
 
     if(_fork_exec)
     {
         auto _pid = fork();
-        if(_pid == 0) return execvpe(argv_ptrs.front(), argv_ptrs.data(), _envp.data());
+        if(_pid == 0)
+            return execvpe(argv_ptrs.front(), argv_ptrs.data(), envp_ptrs.data());
 
         auto _status = rocprofsys::mproc::wait_pid(_pid);
         auto _ec     = rocprofsys::mproc::diagnose_status(_pid, _status);
@@ -494,7 +496,7 @@ run_tool(int argc, char** argv, const tool_config& config)
         return _ec;
     }
 
-    return execvpe(argv_ptrs.front(), argv_ptrs.data(), _envp.data());
+    return execvpe(argv_ptrs.front(), argv_ptrs.data(), envp_ptrs.data());
 }
 
 }  // namespace rocprofsys::common_utils

@@ -46,7 +46,7 @@ translate_arguments(
  * Export configuration to JSON file or stdout.
  */
 void
-export_config(const std::vector<char*>&              current_env,
+export_config(const std::vector<std::string>&        current_env,
               const std::unordered_set<std::string>& initial_envs,
               const std::string& preset_name, std::string_view tool_name,
               const std::string& output_file = "");
@@ -93,7 +93,7 @@ void
 print_command(const std::vector<std::string>& argv, std::string_view prefix = {});
 
 void
-print_environment(const std::vector<char*>&                   env,
+print_environment(const std::vector<std::string>&             env,
                   const std::unordered_set<std::string_view>& updated_envs,
                   bool include_general_vars = false, std::string_view prefix = {});
 
