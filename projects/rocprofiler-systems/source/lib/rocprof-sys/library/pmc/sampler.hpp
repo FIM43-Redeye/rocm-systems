@@ -59,6 +59,8 @@ postfork_parent_reinit();
  * agent_ids).
  * @param instance_infos_per_agent Pre-built instance_id→qualified_name mappings
  * per agent, built from v1 counter info dimension instances.
+ * @param counter_meta_per_agent Per-counter metadata (block, expression,
+ * is_constant, is_derived) extracted from rocprofiler_counter_info_v1_t.
  */
 void
 register_sdk_pmc_source(
@@ -68,7 +70,9 @@ register_sdk_pmc_source(
     const std::vector<std::vector<std::string>>& counter_names_per_agent,
     const std::vector<
         std::vector<device_providers::rocprofiler_sdk::counter_instance_info>>&
-        instance_infos_per_agent);
+        instance_infos_per_agent,
+    const std::vector<std::vector<device_providers::rocprofiler_sdk::counter_metadata>>&
+        counter_meta_per_agent);
 
 }  // namespace pmc
 }  // namespace rocprofsys
