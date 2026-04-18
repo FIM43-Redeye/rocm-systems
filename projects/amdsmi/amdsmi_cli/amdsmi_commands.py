@@ -60,6 +60,9 @@ class AMDSMICommands:
         self.logger = AMDSMILogger(format=format, destination=destination, helpers=self.helpers)
         self.device_handles = []
         self.device_handles_gpus = []
+        self.device_handles_brcm_nics = []
+        self.device_handles_ainics = []
+        self.device_handles_switchs = []
         self.cpu_handles = []
         self.core_handles = []
         self.node_handle = None
@@ -92,7 +95,7 @@ class AMDSMICommands:
                 )
                 exit_flag = True
 
-        if self.helpers.is_ainic_initialized():
+        if self.helpers.is_ainic_initialized() or self.helpers.is_brcm_nic_initialized():
             try:
                 self.device_handles_brcm_nics = amdsmi_interface.get_nic_handles()
                 self.device_handles_ainics = amdsmi_interface.get_ainic_handles()
@@ -694,7 +697,7 @@ class AMDSMICommands:
         self.logger.output = {}
         self.logger.clear_multiple_devices_output()
 
-        if self.helpers.is_brcm_switch_initialized():
+        if self.helpers.is_brcm_switch_initialized() and args.switch:
             self.list_switch(args, False, switch=args.switch)
 
         self.logger.output = {}
@@ -2460,7 +2463,9 @@ class AMDSMICommands:
         if args.gpu == None:
             args.gpu = self.device_handles
 
-        if self.helpers.is_brcm_nic_initialized() and (args.brcm_nic or brcm_nic):
+        if self.helpers.is_brcm_nic_initialized() and (
+            getattr(args, "brcm_nic", False) or brcm_nic
+        ):
             self.logger.output = {}
             self.logger.clear_multiple_devices_output()
             self.firmware_nic(args, multiple_devices, nic, fw_list)
@@ -5702,7 +5707,9 @@ class AMDSMICommands:
             args.cpu = cpu
         if core:
             args.core = core
-        if self.helpers.is_brcm_nic_initialized() and (args.brcm_nic or brcm_nic):
+        if self.helpers.is_brcm_nic_initialized() and (
+            getattr(args, "brcm_nic", False) or brcm_nic
+        ):
             args.nic_power = args.power
             args.nic_temperature = args.temperature
             args.nic_errors = args.ecc
@@ -5722,7 +5729,9 @@ class AMDSMICommands:
             )
             return
 
-        if self.helpers.is_brcm_switch_initialized() and (args.brcm_switch or brcm_switch):
+        if self.helpers.is_brcm_switch_initialized() and (
+            getattr(args, "brcm_switch", False) or brcm_switch
+        ):
             args.switch_power = args.power
             args.switch_errors = args.ecc
             self.logger.output = {}
@@ -10112,7 +10121,9 @@ class AMDSMICommands:
             args.pcie = pcie
         if process:
             args.process = process
-        if brcm_nic or args.brcm_nic:
+        if self.helpers.is_brcm_nic_initialized() and (
+            brcm_nic or getattr(args, "brcm_nic", False)
+        ):
             self.metric_nic(
                 args,
                 multiple_devices,
@@ -10124,7 +10135,9 @@ class AMDSMICommands:
                 nic_temperature=args.temperature,
             )
             return
-        if brcm_switch or args.brcm_switch:
+        if self.helpers.is_brcm_switch_initialized() and (
+            brcm_switch or getattr(args, "brcm_switch", False)
+        ):
             self.metric_switch(
                 args,
                 multiple_devices,
