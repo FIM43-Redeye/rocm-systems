@@ -762,6 +762,8 @@ amdsmi_status_t amdsmi_get_processor_count_from_handles(amdsmi_processor_handle*
   return AMDSMI_STATUS_SUCCESS;
 }
 
+#endif
+
 amdsmi_status_t amdsmi_get_processor_handles_by_type(amdsmi_socket_handle socket_handle,
                                                      processor_type_t processor_type,
                                                      amdsmi_processor_handle* processor_handles,
@@ -792,8 +794,6 @@ amdsmi_status_t amdsmi_get_processor_handles_by_type(amdsmi_socket_handle socket
 
   return AMDSMI_STATUS_SUCCESS;
 }
-
-#endif
 
 amdsmi_status_t amdsmi_get_processor_type(amdsmi_processor_handle processor_handle,
                                           processor_type_t* processor_type) {
