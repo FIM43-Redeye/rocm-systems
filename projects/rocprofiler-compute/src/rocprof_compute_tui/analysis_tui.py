@@ -23,6 +23,7 @@ from utils.utils_analysis import (
     warn_if_multiple_kernels_unfiltered,
 )
 
+
 class tui_analysis(OmniAnalyze_Base):
     def __init__(
         self, args: argparse.Namespace, supported_archs: dict[str, str], path: str
