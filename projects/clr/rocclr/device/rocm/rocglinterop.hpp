@@ -124,6 +124,6 @@ bool glAssociate(Device* device, uint flags, void* GLplatformContext, void* GLde
 bool glDissociate(Device* device, void* GLplatformContext, void* GLdeviceContext);
 bool Export(amd::Memory* mem, GLenum targetType, int miplevel, hsa_handle_t* handle, int* offset,
             void* image_srd, const unsigned image_srd_size);
-
+bool Detach(amd::Memory* mem, hsa_handle_t handle);
 } // namespace GlInterop
 }  // namespace amd::roc

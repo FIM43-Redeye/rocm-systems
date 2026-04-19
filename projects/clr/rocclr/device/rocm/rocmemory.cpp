@@ -253,10 +253,11 @@ bool Memory::createInteropBuffer(GLenum targetType, int miplevel) {
                          MaxMetadataSizeDwords * sizeof(uint32_t))) {
     return false;
   }
+
   if (interopMapBuffer(handle, HSA_INTEROP_MAP_FLAG_KMT_HANDLE) != HSA_STATUS_SUCCESS) return false;
-  CloseHandle(handle);
+
   deviceMemory_ = static_cast<char*>(interop_deviceMemory_) + offset;
-  return true;
+  return GlInterop::Detach(owner(), handle);
 #else
   mesa_glinterop_export_in in = {0};
   mesa_glinterop_export_out out = {0};

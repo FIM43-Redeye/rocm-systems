@@ -192,5 +192,42 @@ bool Export(amd::Memory* mem, GLenum targetType, int miplevel, hsa_handle_t* han
   return true;
 }
 
+// ================================================================================================
+bool Detach(amd::Memory* mem, hsa_handle_t handle) {
+  assert(mem->getInteropObj() != nullptr);
+  assert(mem->getInteropObj()->asGLObject() != nullptr);
+
+  const auto* obj = mem->getInteropObj()->asGLObject();
+  const auto GLContext = mem->getContext().info().hCtx_;
+
+  GLenum type;
+  switch (obj->getCLGLObjectType()) {
+    case CL_GL_OBJECT_BUFFER:
+      type = GL_RESOURCE_ATTACH_VERTEXBUFFER_AMD;
+      break;
+    case CL_GL_OBJECT_RENDERBUFFER:
+      type = GL_RESOURCE_ATTACH_RENDERBUFFER_AMD;
+      break;
+    case CL_GL_OBJECT_TEXTURE_BUFFER:
+    case CL_GL_OBJECT_TEXTURE1D:
+    case CL_GL_OBJECT_TEXTURE1D_ARRAY:
+    case CL_GL_OBJECT_TEXTURE2D:
+    case CL_GL_OBJECT_TEXTURE2D_ARRAY:
+    case CL_GL_OBJECT_TEXTURE3D:
+      type = GL_RESOURCE_ATTACH_TEXTURE_AMD;
+      break;
+    default:
+      LogError("Unknown OpenGL interop type: 0x%x", obj->getCLGLObjectType());
+      return false;
+  }
+
+  const auto glRenderContext = reinterpret_cast<HGLRC>(GLContext);
+  GLResource hRes = {};
+  hRes.mbResHandle = (GLuintp)handle;
+  hRes.type = type;
+
+  return (wglResourceDetachAMD(glRenderContext, &hRes)) ? true : false;
+}
+
 } // namespace GlInterop
 } // namespace amd::roc
