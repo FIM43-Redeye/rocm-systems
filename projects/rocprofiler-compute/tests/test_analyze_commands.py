@@ -1455,18 +1455,27 @@ def test_analyze_with_debug_mode(binary_handler_analyze_rocprof_compute):
 
     sys_info = MockSysInfo()
 
-    raw_pmc_df = {
-        "pmc_perf": pd.DataFrame({
-            "SQ_WAVES": [100, 200, 150],
-            "GRBM_GUI_ACTIVE": [1000, 2000, 1500],
-            "End_Timestamp": [1000000, 2000000, 1500000],
-            "Start_Timestamp": [0, 1000000, 500000],
-        })
-    }
+    raw_pmc_df = pd.concat(
+        {
+            "pmc_perf": pd.DataFrame({
+                "SQ_WAVES": [100, 200, 150],
+                "GRBM_GUI_ACTIVE": [1000, 2000, 1500],
+                "End_Timestamp": [1000000, 2000000, 1500000],
+                "Start_Timestamp": [0, 1000000, 500000],
+            })
+        },
+        axis=1,
+    )
 
     try:
         eval_metric(
-            mock_dfs, mock_dfs_type, sys_info, raw_pmc_df, debug=True, config={}
+            mock_dfs,
+            mock_dfs_type,
+            sys_info,
+            empirical_peaks_df=pd.DataFrame(),
+            raw_pmc_df=raw_pmc_df,
+            debug=True,
+            config={},
         )
     except Exception:
         pass
@@ -1508,12 +1517,15 @@ def test_eval_metric_writes_back_falsey_supported_fields():
         "num_xcd": 1,
         "wave_size": 64,
     })
-    raw_pmc_df = {
-        "pmc_perf": pd.DataFrame({
-            "SQ_WAVES": [100, 200, 150],
-            "GRBM_GUI_ACTIVE": [1000, 2000, 1500],
-        })
-    }
+    raw_pmc_df = pd.concat(
+        {
+            "pmc_perf": pd.DataFrame({
+                "SQ_WAVES": [100, 200, 150],
+                "GRBM_GUI_ACTIVE": [1000, 2000, 1500],
+            })
+        },
+        axis=1,
+    )
 
     assert metric_df.loc["1.1.0", "Average"] is None
 
@@ -1557,25 +1569,6 @@ def test_validate_dual_issue_metrics_gfx950_multiindex():
 
     inner_df = pd.DataFrame({"SQ_ACTIVE_INST_VALU2": [10, 20, 30]})
     raw_pmc_df = pd.concat({"pmc_perf": inner_df}, axis=1)
-    dfs, dfs_type, sys_info, cache = _build_gfx950_dual_issue_fixtures(raw_pmc_df)
-
-    with patch("utils.metrics.evaluation_pipeline.console_warning") as mock_warning:
-        validate_dual_issue_metrics(dfs, dfs_type, sys_info, cache)
-
-    mock_warning.assert_called_once()
-    warning_message = mock_warning.call_args[0][0]
-    assert "VALU Utilization can go up to 200%" in warning_message
-    assert (
-        "Dual-issue activity detected via SQ_ACTIVE_INST_VALU2 counter"
-        in warning_message
-    )
-
-
-def test_validate_dual_issue_metrics_gfx950_dict():
-    """Dict-backed input still triggers the same dual-issue suffix (regression)."""
-    from utils.metrics.evaluation_pipeline import validate_dual_issue_metrics
-
-    raw_pmc_df = {"pmc_perf": pd.DataFrame({"SQ_ACTIVE_INST_VALU2": [10, 20, 30]})}
     dfs, dfs_type, sys_info, cache = _build_gfx950_dual_issue_fixtures(raw_pmc_df)
 
     with patch("utils.metrics.evaluation_pipeline.console_warning") as mock_warning:
@@ -1800,7 +1793,7 @@ def test_metric_evaluation_no_valid_data():
     from utils.metrics.metric_evaluator import MetricEvaluator
     from utils.metrics.pmc_data_cache import PmcDataCache
 
-    metric_evaluator = MetricEvaluator(PmcDataCache({}), {}, {})
+    metric_evaluator = MetricEvaluator(PmcDataCache(pd.DataFrame()), {}, {})
     with patch("builtins.eval") as mock_eval, patch("builtins.compile"):
         # Test when eval returns None
         mock_eval.return_value = None
@@ -1850,7 +1843,7 @@ def test_metric_evaluator_division_by_zero():
     # ---------------------------------------------------------------
     def make_evaluator(columns, sys_vars=None):
         pmc_perf_df = pd.DataFrame(columns)
-        raw_pmc_df = PmcDataCache({"pmc_perf": pmc_perf_df})
+        raw_pmc_df = PmcDataCache(pd.concat({"pmc_perf": pmc_perf_df}, axis=1))
         return MetricEvaluator(raw_pmc_df, sys_vars or {}, {})
 
     # ---------------------------------------------------------------

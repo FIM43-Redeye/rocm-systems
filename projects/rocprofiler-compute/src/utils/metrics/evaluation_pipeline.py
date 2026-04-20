@@ -162,7 +162,7 @@ def eval_metric(
     dfs_type: dict,
     sys_info: pd.Series,
     empirical_peaks_df: pd.DataFrame,
-    raw_pmc_df: pd.DataFrame | dict,
+    raw_pmc_df: pd.DataFrame,
     debug: bool,
     config: dict,
 ) -> None:
