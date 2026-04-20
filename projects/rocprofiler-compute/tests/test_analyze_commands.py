@@ -1843,13 +1843,14 @@ def test_metric_evaluator_division_by_zero():
 
     from utils.metrics.expression import build_eval_string
     from utils.metrics.metric_evaluator import MetricEvaluator
+    from utils.metrics.pmc_data_cache import PmcDataCache
 
     # ---------------------------------------------------------------
     # Helper: build a MetricEvaluator with the given pmc_perf columns
     # ---------------------------------------------------------------
     def make_evaluator(columns, sys_vars=None):
         pmc_perf_df = pd.DataFrame(columns)
-        raw_pmc_df = {"pmc_perf": pmc_perf_df}
+        raw_pmc_df = PmcDataCache({"pmc_perf": pmc_perf_df})
         return MetricEvaluator(raw_pmc_df, sys_vars or {}, {})
 
     # ---------------------------------------------------------------

@@ -79,7 +79,11 @@ def _extract_column_data(
     col_name: str,
     raw_pmc_df: PmcDataCache,
 ) -> Optional[list[Any]]:
-    """Return ``raw_pmc_df[table_key][col_name]`` as a list, or None on miss."""
+    """Return ``raw_pmc_df[table_key][col_name]`` as a list.
+
+    Returns ``None`` when the table or column is absent from the cache; the
+    caller distinguishes this missing-data case from a successful empty list.
+    """
     if not raw_pmc_df.has_column(table_key, col_name):
         return None
     return _series_to_list(raw_pmc_df[table_key][col_name])
@@ -135,7 +139,7 @@ def _print_debug_column_data(
                 formatted += ", ..."
             print(f"  {label}: [{formatted}]")
         else:
-            print(f"  {label}: [unknown type]")
+            print(f"  {label}: [missing]")
 
 
 def _print_debug_inputs(

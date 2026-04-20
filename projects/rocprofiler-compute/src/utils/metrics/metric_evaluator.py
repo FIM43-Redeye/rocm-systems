@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -26,13 +26,16 @@ from utils.metrics.aggregation import (
 )
 from utils.metrics.noise_clamper import to_noise_clamp
 
+if TYPE_CHECKING:
+    from utils.metrics.pmc_data_cache import PmcDataCache
+
 
 class MetricEvaluator:
     """Encapsulates metric evaluation logic and eliminates global variables."""
 
     def __init__(
         self,
-        raw_pmc_df: pd.DataFrame | dict,
+        raw_pmc_df: PmcDataCache,
         sys_vars: dict[str, Any],
         empirical_peaks: dict[str, Any],
     ) -> None:

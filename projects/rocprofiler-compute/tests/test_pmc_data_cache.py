@@ -56,6 +56,25 @@ def test_pmc_data_cache_dataframe_input() -> None:
     assert list(series) == [100, 200, 150]
 
 
+def test_pmc_data_cache_flat_dataframe_input() -> None:
+    """Flat DataFrame input normalizes each column to a Series-valued table."""
+    flat = pd.DataFrame({
+        "SQ_WAVES": [100, 200, 150],
+        "GRBM_GUI_ACTIVE": [1000, 2000, 1500],
+    })
+    cache = PmcDataCache(flat)
+
+    assert "SQ_WAVES" in cache
+    assert "GRBM_GUI_ACTIVE" in cache
+    assert "missing" not in cache
+
+    series = cache["SQ_WAVES"]
+    assert isinstance(series, pd.Series)
+    assert list(series) == [100, 200, 150]
+
+    assert cache.get("missing", "fallback") == "fallback"
+
+
 @pytest.mark.parametrize("invalid_input", [None, [1, 2], 42, "not-a-table"])
 def test_pmc_data_cache_rejects_invalid_input(invalid_input: object) -> None:
     """Construction rejects unsupported input types with TypeError."""
