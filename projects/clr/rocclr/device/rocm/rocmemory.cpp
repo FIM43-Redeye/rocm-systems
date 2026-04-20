@@ -22,6 +22,15 @@
 #include "platform/interop_gl.hpp"
 #include "platform/external_memory.hpp"
 
+#ifdef _WIN32
+#include "device/rocm/rocd3d9interop.hpp"
+#include "device/rocm/rocd3d10interop.hpp"
+#include "device/rocm/rocd3d11interop.hpp"
+#include "platform/interop_d3d9.hpp"
+#include "platform/interop_d3d10.hpp"
+#include "platform/interop_d3d11.hpp"
+#endif
+
 namespace amd::roc {
 
 // ======================================= roc::Memory ============================================
@@ -244,10 +253,42 @@ bool Memory::createInteropBuffer(GLenum targetType, int miplevel) {
   hsa_handle_t handle;
   int offset;
 
-  if (!GlInterop::Export(owner(), targetType, miplevel, &handle, &offset)) return false;
+  // Check if this is D3D interop (vs GL interop)
+  if (owner()->asD3D11Object()) {
+    // D3D11 interop
+    D3D11Object* d3d11Obj = owner()->asD3D11Object();
+    if (!D3D11Interop::Export(this, d3d11Obj->getD3D11Resource(),
+                              d3d11Obj->getSubresource(), &handle, &offset)) {
+      LogError("D3D11Interop::Export failed for buffer");
+      return false;
+    }
+  } else if (owner()->asD3D10Object()) {
+    // D3D10 interop
+    D3D10Object* d3d10Obj = owner()->asD3D10Object();
+    if (!D3D10Interop::Export(this, d3d10Obj->getD3D10Resource(),
+                              d3d10Obj->getSubresource(), &handle, &offset)) {
+      LogError("D3D10Interop::Export failed for buffer");
+      return false;
+    }
+  } else if (owner()->asD3D9Object()) {
+    // D3D9 interop (uses surface instead of resource)
+    D3D9Object* d3d9Obj = owner()->asD3D9Object();
+    IDirect3DSurface9* d3d9Surface = nullptr;
+    // For buffers, we need to cast the resource to appropriate type
+    // D3D9 doesn't have generic resources like D3D10/11
+    if (!D3D9Interop::Export(this, d3d9Surface, &handle, &offset)) {
+      LogError("D3D9Interop::Export failed for buffer");
+      return false;
+    }
+  } else {
+    // GL interop (existing code)
+    if (!GlInterop::Export(owner(), targetType, miplevel, &handle, &offset)) return false;
+  }
+
   if (interopMapBuffer(handle, HSA_INTEROP_MAP_FLAG_KMT_HANDLE) != HSA_STATUS_SUCCESS) return false;
 
   deviceMemory_ = static_cast<char*>(interop_deviceMemory_) + offset;
+  flags_ |= MEMORY_KIND_INTEROP;
   return true;
 #else
   mesa_glinterop_export_in in = {0};
@@ -1227,39 +1268,61 @@ void Image::populateImageDescriptor() {
 }
 
 bool Image::createInteropImage() {
-  auto obj = owner()->getInteropObj()->asGLObject();
-  assert(obj->getCLGLObjectType() != CL_GL_OBJECT_BUFFER &&
-         "Non-image OpenGL object used with interop image API.");
+  // Handle GL interop images
+  auto glObj = owner()->getInteropObj()->asGLObject();
+  if (glObj) {
+    assert(glObj->getCLGLObjectType() != CL_GL_OBJECT_BUFFER &&
+           "Non-image OpenGL object used with interop image API.");
 
-  GLenum glTarget = obj->getGLTarget();
-  if (glTarget == GL_TEXTURE_CUBE_MAP) {
-    glTarget = obj->getCubemapFace();
+    GLenum glTarget = glObj->getGLTarget();
+    if (glTarget == GL_TEXTURE_CUBE_MAP) {
+      glTarget = glObj->getCubemapFace();
+    }
+
+    if (!createInteropBuffer(glTarget, glObj->getGLMipLevel())) {
+      assert(false && "Failed to map GL image buffer.");
+      return false;
+    }
   }
-
-  if (!createInteropBuffer(glTarget, obj->getGLMipLevel())) {
-    assert(false && "Failed to map image buffer.");
+#ifdef _WIN32
+  // Handle D3D interop images (D3D11/D3D10/D3D9 all supported)
+  else if (owner()->asD3D11Object() || owner()->asD3D10Object() || owner()->asD3D9Object()) {
+    // For D3D, we use targetType=0 and miplevel from D3D object
+    // The createInteropBuffer will detect D3D object type and handle appropriately
+    if (!createInteropBuffer(0, 0)) {
+      assert(false && "Failed to map D3D image buffer.");
+      return false;
+    }
+  }
+#endif
+  else {
+    LogError("Interop image is neither GL nor D3D object");
     return false;
   }
 
   originalDeviceMemory_ = deviceMemory_;
 
-  if (obj->getGLTarget() == GL_TEXTURE_BUFFER) {
+  // Handle GL-specific texture buffer case
+  if (glObj && glObj->getGLTarget() == GL_TEXTURE_BUFFER) {
     hsa_status_t err = Hsa::image_create(dev().getBackendDevice(), &imageDescriptor_,
                                          originalDeviceMemory_, permission_, &hsaImageObject_);
     return (err == HSA_STATUS_SUCCESS);
   }
 
+  // For D3D and other GL textures, use metadata descriptor
   image_metadata desc;
   if (!desc.create(amdImageDesc_)) {
     return false;
   }
 
-  if (!desc.setMipLevel(obj->getGLMipLevel())) {
+  // Set mip level if GL object
+  if (glObj && !desc.setMipLevel(glObj->getGLMipLevel())) {
     return false;
   }
 
-  if (obj->getGLTarget() == GL_TEXTURE_CUBE_MAP) {
-    desc.setFace(obj->getCubemapFace(), dev().isa().versionMajor());
+  // Set cubemap face if GL cubemap
+  if (glObj && glObj->getGLTarget() == GL_TEXTURE_CUBE_MAP) {
+    desc.setFace(glObj->getCubemapFace(), dev().isa().versionMajor());
   }
 
   hsa_status_t err =
