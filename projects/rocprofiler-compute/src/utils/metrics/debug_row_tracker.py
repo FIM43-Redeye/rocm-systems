@@ -79,20 +79,10 @@ def _extract_column_data(
     col_name: str,
     raw_pmc_df: PmcDataCache,
 ) -> Optional[list[Any]]:
-    """Extract column data from raw_pmc_df."""
-    if table_key in raw_pmc_df:
-        try:
-            return _series_to_list(raw_pmc_df[table_key][col_name])
-        except (KeyError, TypeError):
-            pass
-
-    if col_name in raw_pmc_df:
-        try:
-            return _series_to_list(raw_pmc_df[col_name])
-        except (KeyError, TypeError):
-            pass
-
-    return None
+    """Return ``raw_pmc_df[table_key][col_name]`` as a list, or None on miss."""
+    if not raw_pmc_df.has_column(table_key, col_name):
+        return None
+    return _series_to_list(raw_pmc_df[table_key][col_name])
 
 
 def _collect_debug_column_data(
@@ -100,8 +90,9 @@ def _collect_debug_column_data(
     raw_pmc_df: PmcDataCache,
 ) -> tuple[list[tuple[str, Optional[list[Any]]]], int]:
     """Collect column data and compute alignment width for debug output."""
+    # `[^"']+` (vs. `\w+`) lets bracketed counters like TCC_HIT[0] match.
     matched_cols = re.findall(
-        r"raw_pmc_df\[[\"'](\w+)[\"']\]\[[\"'](\w+)[\"']\]",
+        r"raw_pmc_df\[[\"']([^\"']+)[\"']\]\[[\"']([^\"']+)[\"']\]",
         row_expr,
     )
     seen: set[tuple[str, str]] = set()

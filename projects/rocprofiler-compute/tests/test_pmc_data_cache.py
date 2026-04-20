@@ -5,6 +5,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from utils.metrics.debug_row_tracker import (
+    _collect_debug_column_data,
+    _extract_column_data,
+)
 from utils.metrics.metric_evaluator import MetricEvaluator
 from utils.metrics.pmc_data_cache import PmcDataCache
 
@@ -182,3 +186,42 @@ def test_pmc_data_cache_with_metric_evaluator() -> None:
 
     assert result != "N/A"
     assert np.isclose(result, 150.0)
+
+
+# ---------------------------------------------------------------------------
+# debug_row_tracker integration with PmcDataCache
+# ---------------------------------------------------------------------------
+
+
+def test_collect_debug_column_data_matches_bracketed_counter() -> None:
+    """The debug regex captures bracketed counter names like TCC_HIT[0]."""
+    cache = PmcDataCache({"pmc_perf": pd.DataFrame({"TCC_HIT[0]": [10, 20, 30]})})
+    row_expr = "to_sum(raw_pmc_df['pmc_perf']['TCC_HIT[0]'])"
+
+    rows_to_print, _global_width = _collect_debug_column_data(row_expr, cache)
+
+    assert len(rows_to_print) == 1
+    label, column_data = rows_to_print[0]
+    assert label == "raw_pmc_df['pmc_perf']['TCC_HIT[0]']"
+    assert column_data == [10, 20, 30]
+
+
+def test_extract_column_data_multiindex_dataframe() -> None:
+    """MultiIndex DataFrame input yields list values via _extract_column_data."""
+    cache = PmcDataCache(_make_pmc_multiindex_df())
+
+    result = _extract_column_data("pmc_perf", "SQ_WAVES", cache)
+
+    assert result == [100, 200, 150]
+
+
+def test_extract_column_data_missing_table_returns_none() -> None:
+    """Missing table_key returns None even when col_name shadows a top-level key."""
+    cache = PmcDataCache({
+        "pmc_perf": pd.DataFrame({"SQ_WAVES": [1, 2, 3]}),
+        "shadow": pd.DataFrame({"X": [9, 9, 9]}),
+    })
+
+    # `shadow` is a top-level table; the rewrite must not fall through to it
+    # when the requested table_key does not exist.
+    assert _extract_column_data("missing_table", "shadow", cache) is None
