@@ -47,32 +47,19 @@ postfork_parent_reinit();
 /**
  * @brief Register an SDK PMC device counting source.
  *
- * Thread-safe. Creates the SDK PMC provider and collector internally,
- * then adds it to the active sampling loop. Called by tool_init() when
- * the device_counting_service context is ready.
+ * Thread-safe. Creates the SDK PMC provider (which queries supported counters,
+ * intersects with user settings, and configures the SDK profile internally),
+ * then creates the collector and adds it to the active sampling loop.
  *
- * @param context The rocprofiler context for device_counting_service.
- * @param agent_ids Agent handle values (one per GPU).
- * @param profile_configs Matching profile config handle values.
- * @param device_indices Matching logical device indices.
- * @param counter_names_per_agent Resolved counter names per agent (parallel to
- * agent_ids).
- * @param instance_infos_per_agent Pre-built instance_id→qualified_name mappings
- * per agent, built from v1 counter info dimension instances.
- * @param counter_meta_per_agent Per-counter metadata (block, expression,
- * is_constant, is_derived) extracted from rocprofiler_counter_info_v1_t.
+ * Called by tool_init() after creating the device_counting_service context.
+ *
+ * @param context_handle The rocprofiler context handle.
+ * @param agent_handles Agent handle + device index pairs (one per GPU).
  */
 void
 register_gpu_perf_counter_source(
-    uint64_t context_handle, const std::vector<uint64_t>& agent_ids,
-    const std::vector<uint64_t>&                 profile_configs,
-    const std::vector<size_t>&                   device_indices,
-    const std::vector<std::vector<std::string>>& counter_names_per_agent,
-    const std::vector<
-        std::vector<device_providers::rocprofiler_sdk::counter_instance_info>>&
-        instance_infos_per_agent,
-    const std::vector<std::vector<device_providers::rocprofiler_sdk::counter_metadata>>&
-        counter_meta_per_agent);
+    uint64_t                                                            context_handle,
+    const std::vector<device_providers::rocprofiler_sdk::agent_handle>& agent_handles);
 
 }  // namespace pmc
 }  // namespace rocprofsys
