@@ -1,24 +1,5 @@
-// MIT License
-//
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
+// Copyright (c) Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: MIT
 
 #pragma once
 
@@ -123,7 +104,7 @@ using backtrace_operation_map_t =
 
 struct client_data
 {
-    static constexpr size_t num_buffers  = 5;
+    static constexpr size_t num_buffers  = 11;
     static constexpr size_t num_contexts = 4;
 
     using buffer_name_info_t   = rocprofiler::sdk::buffer_name_info_t<std::string_view>;
@@ -145,6 +126,12 @@ struct client_data
     rocprofiler_buffer_id_t                   memory_copy_buffer        = { 0 };
     rocprofiler_buffer_id_t                   memory_alloc_buffer       = { 0 };
     rocprofiler_buffer_id_t                   counter_collection_buffer = { 0 };
+    rocprofiler_buffer_id_t                   kfd_page_fault_buffer     = { 0 };
+    rocprofiler_buffer_id_t                   kfd_page_migrate_buffer   = { 0 };
+    rocprofiler_buffer_id_t                   kfd_queue_buffer          = { 0 };
+    rocprofiler_buffer_id_t                   kfd_event_queue_buffer    = { 0 };
+    rocprofiler_buffer_id_t                   kfd_event_unmap_buffer    = { 0 };
+    rocprofiler_buffer_id_t                   kfd_event_dropped_buffer  = { 0 };
     std::vector<tool_agent>                   cpu_agents                = {};
     std::vector<tool_agent>                   gpu_agents                = {};
     std::vector<hardware_counter_info>        events_info               = {};
@@ -204,9 +191,12 @@ client_data::get_code_obj_context() const
 inline client_data::buffer_id_vec_t
 client_data::get_buffers() const
 {
-    return buffer_id_vec_t{ kernel_dispatch_buffer, scratch_memory_buffer,
-                            memory_copy_buffer, memory_alloc_buffer,
-                            counter_collection_buffer };
+    return buffer_id_vec_t{ kernel_dispatch_buffer,    scratch_memory_buffer,
+                            memory_copy_buffer,        memory_alloc_buffer,
+                            counter_collection_buffer, kfd_page_fault_buffer,
+                            kfd_page_migrate_buffer,   kfd_queue_buffer,
+                            kfd_event_queue_buffer,    kfd_event_unmap_buffer,
+                            kfd_event_dropped_buffer };
 }
 
 inline const rocprofsys_agent_t*
