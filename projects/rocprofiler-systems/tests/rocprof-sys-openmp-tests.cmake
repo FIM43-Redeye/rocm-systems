@@ -97,7 +97,7 @@ rocprofiler_systems_add_validation_test(
       Z4vmulIfEvPT_S1_S1_i_l51.kd
       Z4vmulIdEvPT_S1_S1_i_l51.kd
       -c 4 4 4
-      -d 0 0 0
+      --match-by-label
       -p
 )
 
