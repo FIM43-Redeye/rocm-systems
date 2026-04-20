@@ -1533,12 +1533,10 @@ def test_eval_metric_writes_back_falsey_supported_fields():
 
 
 def _build_gfx950_dual_issue_fixtures(raw_pmc_df):
-    """Return ``(dfs, dfs_type, sys_info, cache)`` tuned to fire the gfx950
-    dual-issue confirmation suffix in ``validate_dual_issue_metrics``."""
-    import sys
-
-    sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
+    """
+    Return ``(dfs, dfs_type, sys_info, cache)`` tuned to fire the gfx950
+    dual-issue confirmation suffix in ``validate_dual_issue_metrics``.
+    """
     from utils.metrics.pmc_data_cache import PmcDataCache
 
     metric_df = pd.DataFrame({
@@ -1555,10 +1553,6 @@ def _build_gfx950_dual_issue_fixtures(raw_pmc_df):
 
 def test_validate_dual_issue_metrics_gfx950_multiindex():
     """Dual-issue confirmation now fires for MultiIndex DataFrame input on gfx950."""
-    import sys
-
-    sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
     from utils.metrics.evaluation_pipeline import validate_dual_issue_metrics
 
     inner_df = pd.DataFrame({"SQ_ACTIVE_INST_VALU2": [10, 20, 30]})
@@ -1579,10 +1573,6 @@ def test_validate_dual_issue_metrics_gfx950_multiindex():
 
 def test_validate_dual_issue_metrics_gfx950_dict():
     """Dict-backed input still triggers the same dual-issue suffix (regression)."""
-    import sys
-
-    sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
     from utils.metrics.evaluation_pipeline import validate_dual_issue_metrics
 
     raw_pmc_df = {"pmc_perf": pd.DataFrame({"SQ_ACTIVE_INST_VALU2": [10, 20, 30]})}
