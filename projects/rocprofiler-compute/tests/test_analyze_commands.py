@@ -1532,6 +1532,74 @@ def test_eval_metric_writes_back_falsey_supported_fields():
     assert metric_df.loc["1.1.0", "Average"] == ""
 
 
+def _build_gfx950_dual_issue_fixtures(raw_pmc_df):
+    """Return ``(dfs, dfs_type, sys_info, cache)`` tuned to fire the gfx950
+    dual-issue confirmation suffix in ``validate_dual_issue_metrics``."""
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+    from utils.metrics.pmc_data_cache import PmcDataCache
+
+    metric_df = pd.DataFrame({
+        "Metric": ["VALU Utilization"],
+        "Value": [150.0],
+        "Peak": [100.0],
+    })
+    dfs = {1: metric_df}
+    dfs_type = {1: "metric_table"}
+    sys_info = pd.Series({"gpu_arch": "gfx950"})
+    cache = PmcDataCache(raw_pmc_df)
+    return dfs, dfs_type, sys_info, cache
+
+
+def test_validate_dual_issue_metrics_gfx950_multiindex():
+    """Dual-issue confirmation now fires for MultiIndex DataFrame input on gfx950."""
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+    from utils.metrics.evaluation_pipeline import validate_dual_issue_metrics
+
+    inner_df = pd.DataFrame({"SQ_ACTIVE_INST_VALU2": [10, 20, 30]})
+    raw_pmc_df = pd.concat({"pmc_perf": inner_df}, axis=1)
+    dfs, dfs_type, sys_info, cache = _build_gfx950_dual_issue_fixtures(raw_pmc_df)
+
+    with patch("utils.metrics.evaluation_pipeline.console_warning") as mock_warning:
+        validate_dual_issue_metrics(dfs, dfs_type, sys_info, cache)
+
+    mock_warning.assert_called_once()
+    warning_message = mock_warning.call_args[0][0]
+    assert "VALU Utilization can go up to 200%" in warning_message
+    assert (
+        "Dual-issue activity detected via SQ_ACTIVE_INST_VALU2 counter"
+        in warning_message
+    )
+
+
+def test_validate_dual_issue_metrics_gfx950_dict():
+    """Dict-backed input still triggers the same dual-issue suffix (regression)."""
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+    from utils.metrics.evaluation_pipeline import validate_dual_issue_metrics
+
+    raw_pmc_df = {"pmc_perf": pd.DataFrame({"SQ_ACTIVE_INST_VALU2": [10, 20, 30]})}
+    dfs, dfs_type, sys_info, cache = _build_gfx950_dual_issue_fixtures(raw_pmc_df)
+
+    with patch("utils.metrics.evaluation_pipeline.console_warning") as mock_warning:
+        validate_dual_issue_metrics(dfs, dfs_type, sys_info, cache)
+
+    mock_warning.assert_called_once()
+    warning_message = mock_warning.call_args[0][0]
+    assert "VALU Utilization can go up to 200%" in warning_message
+    assert (
+        "Dual-issue activity detected via SQ_ACTIVE_INST_VALU2 counter"
+        in warning_message
+    )
+
+
 @pytest.mark.misc
 def test_filter_combinations_coverage(binary_handler_analyze_rocprof_compute):
     """Test basic filters that should work"""
