@@ -52,6 +52,13 @@ def test_pmc_data_cache_dataframe_input() -> None:
     assert list(series) == [100, 200, 150]
 
 
+@pytest.mark.parametrize("invalid_input", [None, [1, 2], 42, "not-a-table"])
+def test_pmc_data_cache_rejects_invalid_input(invalid_input: object) -> None:
+    """Construction rejects unsupported input types with TypeError."""
+    with pytest.raises(TypeError, match="unsupported raw_pmc_df type"):
+        PmcDataCache(invalid_input)  # type: ignore[arg-type]
+
+
 def test_pmc_data_cache_level1_cache_hit() -> None:
     """Repeated top-level lookups must return the same cached object."""
     cache = PmcDataCache(_make_pmc_dict())
@@ -71,14 +78,14 @@ def test_pmc_data_cache_level2_cache_hit() -> None:
     assert first is second
 
 
-def test_pmc_data_cache_getattr_delegation() -> None:
-    """Attribute access delegates to DataFrame columns and metadata."""
-    cache = PmcDataCache(_make_pmc_dict())
-    nested = cache["pmc_perf"]
+def test_pmc_data_cache_multiindex_level2_cache_hit() -> None:
+    """MultiIndex column lookups on a nested cache must return the same object."""
+    cache = PmcDataCache(_make_pmc_multiindex_df())
 
-    assert hasattr(nested, "SQ_WAVES")
-    assert list(nested.columns) == ["SQ_WAVES", "GRBM_GUI_ACTIVE"]
-    assert not hasattr(nested, "NONEXISTENT")
+    nested = cache["pmc_perf"]
+    first = nested["SQ_WAVES"]
+    second = nested["SQ_WAVES"]
+    assert first is second
 
 
 def test_pmc_data_cache_contains_and_get() -> None:
@@ -109,6 +116,14 @@ def test_pmc_data_cache_has_column_missing_column() -> None:
     """has_column returns False when the column name does not exist in the table."""
     cache = PmcDataCache(_make_pmc_dict())
     assert cache.has_column("pmc_perf", "NONEXISTENT") is False
+
+
+def test_pmc_data_cache_has_column_with_scalar_nested() -> None:
+    """has_column returns False when the table key resolves to a scalar value."""
+    raw = {"version": 42, "pmc_perf": pd.DataFrame({"A": [1]})}
+    cache = PmcDataCache(raw)
+    assert cache.has_column("version", "anything") is False
+    assert cache.has_column("pmc_perf", "A") is True
 
 
 def test_pmc_data_cache_multiindex_contains() -> None:
