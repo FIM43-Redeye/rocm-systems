@@ -184,10 +184,10 @@ void TestPciReadWrite::Run(void) {
       auto status_string("");
       amdsmi_status_code_to_string(ret, &status_string);
       std::cout << "\t\t** amdsmi_set_gpu_pci_bandwidth(): " << status_string << "\n";
-      // Restore perf level to AUTO since the library may have set it to
-      // MANUAL before the bandwidth write failed.
-      ret = amdsmi_set_gpu_perf_level(processor_handles_[dv_ind], AMDSMI_DEV_PERF_LEVEL_AUTO);
-      CHK_ERR_ASRT(ret)
+      // The library returns NOT_SUPPORTED before changing perf level on
+      // hardware that rejects the sysfs write (e.g. EROFS), so no restore
+      // is needed. Attempting a restore here would itself fail with the
+      // same errno on such hardware.
       continue;
     }
     CHK_ERR_ASRT(ret)
