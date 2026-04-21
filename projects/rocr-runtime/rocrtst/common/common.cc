@@ -65,26 +65,98 @@ namespace rocrtst {
 size_t pool_size_limit = 0;
 
 bool isEmuModeEnabled() {
-  auto checkMode = []{ 
-    const char* path = "/sys/module/amdgpu/parameters/emu_mode";
-    FILE* file = fopen(path, "r");
-    if (!file) {
-      std::cout << "Failed to open file." << std::endl;
-      return false;
-    }
+  static bool checked = false;
+  static bool emu_mode = false;
 
-    int emu_mode = 0;
-    if (fscanf(file, "%d", &emu_mode) != 1) {
-      std::cout << "Failed to parse as a decimal." << std::endl;
-      fclose(file);
-      return false;
+  if (!checked) {
+    // Check for environment variable override first (consistent with detectPlatform)
+    char* override = getenv("ROCRTST_PLATFORM_OVERRIDE");
+    if (override != nullptr) {
+      std::string platform_str(override);
+      emu_mode = (platform_str == "EMULATOR" || platform_str == "EMU");
+    } else {
+      // Auto-detect from /sys/module/amdgpu/parameters/emu_mode
+      const char* path = "/sys/module/amdgpu/parameters/emu_mode";
+      FILE* file = fopen(path, "r");
+      if (!file) {
+        // File doesn't exist - not in emulator mode
+        emu_mode = false;
+      } else {
+        int mode = 0;
+        if (fscanf(file, "%d", &mode) == 1) {
+          emu_mode = (mode != 0);
+        } else {
+          emu_mode = false;
+        }
+        fclose(file);
+      }
     }
-    fclose(file);
-    return emu_mode != 0;
-  };
+    checked = true;
+  }
 
-  static bool emu_mode = checkMode(); 
   return emu_mode;
+}
+
+bool PlatformDetector::isFFMEnvironment() {
+  static bool checked = false;
+  static bool is_ffm = false;
+
+  if (!checked) {
+    char* var = getenv("HSA_MODEL_TOPOLOGY");
+    is_ffm = (var != nullptr);
+    if (is_ffm) {
+      std::cout << "FFM: environment detected with topology path: "
+                                                  << var << '\n';
+    }
+    checked = true;
+  }
+
+  return is_ffm;
+}
+
+PlatformType PlatformDetector::detectPlatform() {
+  // Check for environment variable override first
+  char* override = getenv("ROCRTST_PLATFORM_OVERRIDE");
+  if (override != nullptr) {
+    std::string platform_str(override);
+    if (platform_str == "FFM_SIMULATOR" || platform_str == "FFM") {
+      return PlatformType::FFM_SIMULATOR;
+    } else if (platform_str == "EMULATOR" || platform_str == "EMU") {
+      return PlatformType::EMULATOR;
+    } else if (platform_str == "REAL_HARDWARE" ||
+               platform_str == "REAL" || platform_str == "HW") {
+      return PlatformType::REAL_HARDWARE;
+    }
+  }
+
+  // Auto-detect platform
+  // Check FFM first (via HSA_MODEL_TOPOLOGY env var)
+  if (isFFMEnvironment()) {
+    return PlatformType::FFM_SIMULATOR;
+  }
+
+  // Check emulator (via /sys/module/amdgpu/parameters/emu_mode)
+  if (isEmuModeEnabled()) {
+    return PlatformType::EMULATOR;
+  }
+
+  // Default to real hardware
+  return PlatformType::REAL_HARDWARE;
+}
+
+const char* PlatformDetector::platformName(PlatformType platform) {
+  switch (platform) {
+    case PlatformType::REAL_HARDWARE:
+      return "REAL_HARDWARE";
+    case PlatformType::EMULATOR:
+      return "EMULATOR";
+    case PlatformType::FFM_SIMULATOR:
+      return "FFM_SIMULATOR";
+    case PlatformType::UNKNOWN:
+      return "UNKNOWN";
+    default:
+      return "INVALID";
+  }
 }
 
 static hsa_status_t FindAgent(hsa_agent_t agent, void* data,
