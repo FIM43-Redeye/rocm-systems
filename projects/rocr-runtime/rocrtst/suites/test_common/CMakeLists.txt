@@ -174,6 +174,8 @@ if(NOT HAVE_YAML_CPP AND PKG_CONFIG_FOUND)
         INTERFACE_INCLUDE_DIRECTORIES "${YAML_CPP_PC_INCLUDE_DIRS}"
       )
       message(STATUS "Found yaml-cpp via pkg-config (UNKNOWN): ${YAML_CPP_LIBRARY_FILE}")
+      message(STATUS "  Include dirs: ${YAML_CPP_PC_INCLUDE_DIRS}")
+      message(STATUS "  Library dirs: ${YAML_CPP_PC_LIBRARY_DIRS}")
     else()
       # Fallback: library is in the default linker path; use an INTERFACE target
       # with the link flags emitted by pkg-config directly
@@ -184,12 +186,11 @@ if(NOT HAVE_YAML_CPP AND PKG_CONFIG_FOUND)
         INTERFACE_LINK_DIRECTORIES "${YAML_CPP_PC_LIBRARY_DIRS}"
       )
       message(STATUS "Found yaml-cpp via pkg-config (INTERFACE): ${YAML_CPP_PC_LIBRARIES}")
+      message(STATUS "  Include dirs: ${YAML_CPP_PC_INCLUDE_DIRS}")
     endif()
 
     set(YAML_CPP_TARGET yaml-cpp_imported)
     set(HAVE_YAML_CPP TRUE)
-    message(STATUS "  Include dirs: ${YAML_CPP_PC_INCLUDE_DIRS}")
-    message(STATUS "  Library dirs: ${YAML_CPP_PC_LIBRARY_DIRS}")
   endif()
 endif()
 
