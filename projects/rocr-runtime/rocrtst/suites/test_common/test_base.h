@@ -97,6 +97,7 @@ class TestBase : public rocrtst::BaseRocR {
 
  private:
   std::string description_;
+  bool skip_;
 };
 
 #endif  // ROCRTST_SUITES_TEST_COMMON_TEST_BASE_H_
