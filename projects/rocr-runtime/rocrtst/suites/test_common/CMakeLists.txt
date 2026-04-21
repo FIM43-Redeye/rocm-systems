@@ -138,6 +138,9 @@ find_package(amd_smi REQUIRED)
 set(HAVE_YAML_CPP FALSE)
 set(YAML_CPP_TARGET "")
 
+# PkgConfig is needed for yaml-cpp and other fallback detection paths
+find_package(PkgConfig)
+
 find_package(yaml-cpp QUIET CONFIG)
 if(yaml-cpp_FOUND)
   # Check for modern target name
@@ -156,7 +159,7 @@ endif()
 if(NOT HAVE_YAML_CPP AND PKG_CONFIG_FOUND)
   pkg_check_modules(YAML_CPP_PC yaml-cpp)
   if(YAML_CPP_PC_FOUND)
-    # Try to find the actual library file for SHARED IMPORTED target
+    # Try to find the actual library file for an UNKNOWN IMPORTED target
     find_library(YAML_CPP_LIBRARY_FILE
       NAMES yaml-cpp
       HINTS ${YAML_CPP_PC_LIBRARY_DIRS}
@@ -164,18 +167,29 @@ if(NOT HAVE_YAML_CPP AND PKG_CONFIG_FOUND)
     )
 
     if(YAML_CPP_LIBRARY_FILE)
-      # Create SHARED IMPORTED target for proper RPATH handling
-      add_library(yaml-cpp_imported SHARED IMPORTED)
+      # Create UNKNOWN IMPORTED target (works for both static and shared libs)
+      add_library(yaml-cpp_imported UNKNOWN IMPORTED)
       set_target_properties(yaml-cpp_imported PROPERTIES
         IMPORTED_LOCATION "${YAML_CPP_LIBRARY_FILE}"
         INTERFACE_INCLUDE_DIRECTORIES "${YAML_CPP_PC_INCLUDE_DIRS}"
       )
-      set(YAML_CPP_TARGET yaml-cpp_imported)
-      set(HAVE_YAML_CPP TRUE)
-      message(STATUS "Found yaml-cpp via pkg-config (SHARED): ${YAML_CPP_LIBRARY_FILE}")
-      message(STATUS "  Include dirs: ${YAML_CPP_PC_INCLUDE_DIRS}")
-      message(STATUS "  Library dirs: ${YAML_CPP_PC_LIBRARY_DIRS}")
+      message(STATUS "Found yaml-cpp via pkg-config (UNKNOWN): ${YAML_CPP_LIBRARY_FILE}")
+    else()
+      # Fallback: library is in the default linker path; use an INTERFACE target
+      # with the link flags emitted by pkg-config directly
+      add_library(yaml-cpp_imported INTERFACE IMPORTED)
+      set_target_properties(yaml-cpp_imported PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${YAML_CPP_PC_INCLUDE_DIRS}"
+        INTERFACE_LINK_LIBRARIES "${YAML_CPP_PC_LIBRARIES}"
+        INTERFACE_LINK_DIRECTORIES "${YAML_CPP_PC_LIBRARY_DIRS}"
+      )
+      message(STATUS "Found yaml-cpp via pkg-config (INTERFACE): ${YAML_CPP_PC_LIBRARIES}")
     endif()
+
+    set(YAML_CPP_TARGET yaml-cpp_imported)
+    set(HAVE_YAML_CPP TRUE)
+    message(STATUS "  Include dirs: ${YAML_CPP_PC_INCLUDE_DIRS}")
+    message(STATUS "  Library dirs: ${YAML_CPP_PC_LIBRARY_DIRS}")
   endif()
 endif()
 
