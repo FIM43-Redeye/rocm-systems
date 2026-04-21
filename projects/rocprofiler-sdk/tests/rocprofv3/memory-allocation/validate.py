@@ -24,7 +24,6 @@
 
 import sys
 import pytest
-import json
 
 from collections import defaultdict
 
@@ -110,6 +109,7 @@ def test_memory_allocation(json_data):
         memory_alloc_cnt[op_id]["agent"].add(node.agent_id.handle)
 
         # Check if agent is valid
+        assert op_id in ALLOCATE_OPS or op_id in FREE_OPS
         if op_id in ALLOCATE_OPS:
             assert node.agent_id.handle in valid_agent_ids
         else:
@@ -218,6 +218,7 @@ def test_csv_data(csv_data):
             assert row["Agent_Id"] == ""  # free ops have no agent
 
         # Confirm allocation size is valid
+        assert row["Operation"] in ALLOCATION_OPS or row["Operation"] in FREE_OPS
         if row["Operation"] in ALLOCATION_OPS:
             assert int(row["Allocation_Size"]) in (
                 1024,
