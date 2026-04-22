@@ -11,7 +11,7 @@ project(
 find_package(rocprofiler-sdk REQUIRED)
 
 set(ROCPROFILER_MEMCHECK_TYPES "AddressSanitizer" "UndefinedBehaviorSanitizer"
-                               "ThreadSanitizer")
+                               "ThreadSanitizer" "LeakSanitizer")
 
 if(ROCPROFILER_MEMCHECK AND ROCPROFILER_MEMCHECK IN_LIST ROCPROFILER_MEMCHECK_TYPES)
     set(IS_DISABLED ON)
@@ -24,8 +24,6 @@ if(ROCPROFILER_MEMCHECK STREQUAL "LeakSanitizer")
 else()
     set(LOG_LEVEL "info")
 endif()
-
-set(PRELOAD_ENV "${ROCPROFILER_MEMCHECK_PRELOAD_ENV_VALUE}")
 
 set(attachment-env
     "LD_LIBRARY_PATH=$<TARGET_FILE_DIR:rocprofiler-sdk::rocprofiler-sdk-shared-library>:$ENV{LD_LIBRARY_PATH}"
@@ -40,13 +38,13 @@ rocprofiler_add_integration_execute_test(
         ${CMAKE_CURRENT_BINARY_DIR} ${LOG_LEVEL} out
     DEPENDS rocprofiler-sdk::rocprofv3
     TIMEOUT 60
-    LABELS "integration-tests;attachment"
+    LABELS "attachment"
     DISABLED ${IS_DISABLED}
-    PRELOAD "${PRELOAD_ENV}"
+    PRELOAD "${ROCPROFILER_MEMCHECK_PRELOAD_ENV_VALUE}"
     ENVIRONMENT "${attachment-env}"
+    FAIL_REGULAR_EXPRESSION "ERROR|FATAL|${ROCPROFILER_DEFAULT_FAIL_REGEX}"
     SKIP_REGULAR_EXPRESSION "This test is skipped."
-    FIXTURES_SETUP rocprofv3-test-attachment-attach-tree
-    FAIL_REGULAR_EXPRESSION "ERROR|FATAL|${ROCPROFILER_DEFAULT_FAIL_REGEX}")
+    FIXTURES_SETUP rocprofv3-test-attachment-attach-tree)
 
 # Validate the CSV output
 rocprofiler_add_integration_validate_test(
@@ -55,7 +53,7 @@ rocprofiler_add_integration_validate_test(
     COPY conftest.py
     CONFIG pytest.ini
     TIMEOUT 30
-    LABELS "integration-tests;attachment"
+    LABELS "attachment"
     DISABLED ${IS_DISABLED}
     SKIP_REGULAR_EXPRESSION "SKIPPED"
     FIXTURES_REQUIRED rocprofv3-test-attachment-attach-tree
@@ -77,7 +75,7 @@ rocprofiler_add_integration_validate_test(
     COPY conftest.py
     CONFIG pytest.ini
     TIMEOUT 30
-    LABELS "integration-tests;attachment"
+    LABELS "attachment"
     DISABLED ${IS_DISABLED}
     SKIP_REGULAR_EXPRESSION "SKIPPED"
     FIXTURES_REQUIRED rocprofv3-test-attachment-attach-tree
