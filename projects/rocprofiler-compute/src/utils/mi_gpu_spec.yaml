@@ -488,4 +488,45 @@ mi_gpu_spec:
               memory_levels: ["LDS", "L0", "L1", "L2"]
             chip_ids:
               physical: 4372
+      # gfx1102 (Navi 33): RX 7700S/7600/Framework Laptop 16 dGPU.
+      # perfmon_config copied from gfx1151 (RDNA3 family shares WGP layout).
+      # NEEDS HARDWARE VALIDATION: counter availability not yet confirmed for
+      # full RDNA3 dGPUs.
+      - gpu_arch: gfx1102
+        perfmon_config:
+            SQ: 8
+            TA: 2
+            GRBM: 2
+            CPC:  2
+            GCEA: 2
+            TCP:  4
+            SPI:  6
+            GL1A: 4
+            GL1C: 4
+            GL2A: 4
+            GL2C: 4
+        models:
+          - gpu_model: navi33
+            chip_ids:
+              physical: 29824
+      # gfx1103 (Phoenix iGPU): Radeon 780M / Hawk Point laptops.
+      # Same perfmon_config as gfx1102; differs in CU count (12 vs 32) only
+      # at runtime via $cu_per_gpu sysinfo lookup.
+      - gpu_arch: gfx1103
+        perfmon_config:
+            SQ: 8
+            TA: 2
+            GRBM: 2
+            CPC:  2
+            GCEA: 2
+            TCP:  4
+            SPI:  6
+            GL1A: 4
+            GL1C: 4
+            GL2A: 4
+            GL2C: 4
+        models:
+          - gpu_model: phoenix
+            chip_ids:
+              physical: 5567
   #########################################################
